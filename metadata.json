@@ -1,6 +1,6 @@
 {
   "name": "NOVACUT",
-  "description": "Complete multi-track video editing studio with AI Text-to-Effect Generator, Media3 ExoPlayer & Transformer, 32+ visual effects, and 30+ synthesized sound effects.",
+  "description": "Complete multi-track video editing studio with Media3 ExoPlayer & Transformer, 16 Media3 video filters, 32+ visual effects, and 30+ synthesized sound effects.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

@@ -1,16 +1,11 @@
 <resources>
     <string name="app_name">NOVACUT</string>
-    <string name="tagline">Cinema Multi-Track &amp; AI Video Studio</string>
+    <string name="tagline">Cinema Multi-Track Video Studio</string>
     <string name="nav_home">Studio</string>
     <string name="nav_templates">Templates</string>
     <string name="nav_projects">Projects</string>
-    <string name="nav_ai_lab">AI Lab</string>
     <string name="new_project">New Project</string>
     <string name="import_video">Import Video from Gallery</string>
     <string name="export_video">Export Master MP4</string>
-    <string name="ai_auto_subtitles">AI Auto Subtitles</string>
-    <string name="ai_scene_detection">AI Scene &amp; Highlight Detection</string>
-    <string name="ai_enhance_video">AI Color &amp; Video Enhancement</string>
-    <string name="ai_custom_effect">AI Text-to-Effect Generator</string>
     <string name="voice_record_permission_rationale">Microphone permission is required to record voiceovers directly onto the timeline.</string>
 </resources>

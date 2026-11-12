@@ -34,6 +34,7 @@ import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.AspectRatio
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CropFree
+import androidx.compose.material.icons.filled.FilterVintage
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.PictureInPicture
 import androidx.compose.material.icons.filled.Repeat
@@ -83,6 +84,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.effect.Contrast
 import androidx.media3.effect.HslAdjustment
 import androidx.media3.effect.RgbAdjustment
+import androidx.media3.effect.RgbFilter
 import androidx.media3.effect.ScaleAndRotateTransformation
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
@@ -139,6 +141,7 @@ fun VideoPlayer(
     onDragTextOverlay: (String, Float, Float) -> Unit,
     onDragStickerOverlay: (String, Float, Float) -> Unit,
     onTogglePlayback: (() -> Unit)? = null,
+    onOpenFiltersSheet: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -256,6 +259,7 @@ fun VideoPlayer(
     val media3EffectsSignature = remember(
         activeClip?.id,
         activeClip?.filterPreset,
+        activeClip?.filterIntensity,
         activeClip?.brightness,
         activeClip?.contrast,
         activeClip?.saturation,
@@ -265,7 +269,7 @@ fun VideoPlayer(
     ) {
         buildString {
             append(activeClip?.id ?: "none")
-            append(":${activeClip?.filterPreset?.name}:${activeClip?.brightness}:${activeClip?.contrast}:${activeClip?.saturation}")
+            append(":${activeClip?.filterPreset?.name}:${activeClip?.filterIntensity}:${activeClip?.brightness}:${activeClip?.contrast}:${activeClip?.saturation}")
             append(":${activeClip?.rotationDegrees}:${activeClip?.cropScale}:")
             activeEffects.forEach { fx ->
                 append("${fx.id}_${fx.effectType.name}_${fx.intensity}_${fx.customTintHex}_")
@@ -623,16 +627,32 @@ fun VideoPlayer(
 
                 // 2. Real-Time Stacked VideoEffects, Color LUTs & Transition Shader Canvas
                 val preset = activeClip.filterPreset
+                val filterStrength = activeClip.filterIntensity.coerceIn(0f, 1f)
                 Canvas(modifier = Modifier.fillMaxSize()) {
-                    // Base LUT Tint Overlay
-                    if (preset.name != "ORIGINAL") {
-                        val tintColor = Color(
-                            red = (preset.rScale / 1.5f).coerceIn(0f, 1f),
-                            green = (preset.gScale / 1.5f).coerceIn(0f, 1f),
-                            blue = (preset.bScale / 1.5f).coerceIn(0f, 1f),
-                            alpha = 0.22f
-                        )
-                        drawRect(color = tintColor)
+                    // Base LUT Tint Overlay (scaled by filterIntensity)
+                    if (preset.name != "ORIGINAL" && filterStrength > 0.01f) {
+                        if (preset.isGrayscale) {
+                            drawRect(
+                                color = Color(0xFF1A1D24).copy(alpha = (0.38f * filterStrength).coerceIn(0f, 0.55f))
+                            )
+                        } else if (preset.isInverted) {
+                            drawRect(
+                                brush = Brush.linearGradient(
+                                    colors = listOf(
+                                        Color(0xFFFF0055).copy(alpha = 0.28f * filterStrength),
+                                        Color(0xFF00F0FF).copy(alpha = 0.28f * filterStrength)
+                                    )
+                                )
+                            )
+                        } else {
+                            val tintColor = Color(
+                                red = (preset.rScale / 1.45f).coerceIn(0f, 1f),
+                                green = (preset.gScale / 1.45f).coerceIn(0f, 1f),
+                                blue = (preset.bScale / 1.45f).coerceIn(0f, 1f),
+                                alpha = (0.26f * filterStrength).coerceIn(0f, 0.42f)
+                            )
+                            drawRect(color = tintColor)
+                        }
                     }
 
                     // Brightness adjustment
@@ -1062,7 +1082,7 @@ fun VideoPlayer(
                     }
                 }
 
-                // 6. Bottom-Right Media3 Quick Stage Controls (Mute, Resize Mode, Loop)
+                // 6. Bottom-Right Media3 Quick Stage Controls (Filters Grid, Mute, Resize Mode, Loop)
                 Row(
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
@@ -1070,6 +1090,16 @@ fun VideoPlayer(
                     horizontalArrangement = Arrangement.spacedBy(5.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    if (onOpenFiltersSheet != null) {
+                        StageMiniToggleButton(
+                            icon = Icons.Default.FilterVintage,
+                            contentDescription = "Open Video Filters Grid",
+                            isActive = activeClip.filterPreset.name != "ORIGINAL",
+                            activeColor = NovaGold,
+                            onClick = onOpenFiltersSheet,
+                            testTag = "player_open_filters_sheet_button"
+                        )
+                    }
                     StageMiniToggleButton(
                         icon = if (isMasterMuted) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp,
                         contentDescription = if (isMasterMuted) "Unmute Preview" else "Mute Preview",
@@ -1239,11 +1269,22 @@ fun buildRealtimeMedia3Effects(
     val effects = mutableListOf<Effect>()
 
     val preset = clip.filterPreset
-    var rScale = preset.rScale + clip.brightness
-    var gScale = preset.gScale + clip.brightness
-    var bScale = preset.bScale + clip.brightness
-    var contrastDelta = (clip.contrast - 1.0f) + (preset.contrastBoost - 1.0f)
-    var satDelta = ((clip.saturation * preset.saturationBoost) - 1.0f) * 80f
+    val filterStrength = clip.filterIntensity.coerceIn(0f, 1f)
+
+    if (preset.isGrayscale && filterStrength >= 0.35f) {
+        effects.add(RgbFilter.createGrayscaleFilter())
+    }
+    if (preset.isInverted && filterStrength >= 0.35f) {
+        effects.add(RgbFilter.createInvertedFilter())
+    }
+
+    var rScale = (1.0f + (preset.rScale - 1.0f) * filterStrength) + clip.brightness
+    var gScale = (1.0f + (preset.gScale - 1.0f) * filterStrength) + clip.brightness
+    var bScale = (1.0f + (preset.bScale - 1.0f) * filterStrength) + clip.brightness
+    var contrastDelta = (clip.contrast - 1.0f) + ((preset.contrastBoost - 1.0f) * filterStrength)
+    val effectivePresetSat = 1.0f + (preset.saturationBoost - 1.0f) * filterStrength
+    var satDelta = ((clip.saturation * effectivePresetSat) - 1.0f) * 80f
+    val hueDelta = (preset.hueShiftDegrees * filterStrength).coerceIn(-180f, 180f)
 
     activeEffects.forEach { fx ->
         val amt = fx.intensity.coerceIn(0.1f, 1.0f)
@@ -1320,12 +1361,15 @@ fun buildRealtimeMedia3Effects(
     }
 
     val clampedSat = satDelta.coerceIn(-95f, 95f)
-    if (abs(clampedSat) > 1.5f) {
-        effects.add(
-            HslAdjustment.Builder()
-                .adjustSaturation(clampedSat)
-                .build()
-        )
+    if (abs(clampedSat) > 1.5f || abs(hueDelta) > 0.5f) {
+        val hslBuilder = HslAdjustment.Builder()
+        if (abs(hueDelta) > 0.5f) {
+            hslBuilder.adjustHue(hueDelta)
+        }
+        if (abs(clampedSat) > 1.5f) {
+            hslBuilder.adjustSaturation(clampedSat)
+        }
+        effects.add(hslBuilder.build())
     }
 
     if (clip.rotationDegrees != 0f || clip.cropScale != 1.0f) {

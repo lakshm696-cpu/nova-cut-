@@ -127,12 +127,9 @@ import com.example.viewmodel.NovaCutViewModel
 fun VideoEffectsStudioPanel(viewModel: NovaCutViewModel) {
     val videoEffects by viewModel.videoEffects.collectAsStateWithLifecycle()
     val selectedEffectId by viewModel.selectedEffectId.collectAsStateWithLifecycle()
-    val customAiEffects by viewModel.customAiEffects.collectAsStateWithLifecycle()
-    val aiTaskState by viewModel.aiTaskState.collectAsStateWithLifecycle()
     val totalDurationMs = viewModel.totalTimelineDurationMs
 
     var searchQuery by remember { mutableStateOf("") }
-    var aiEffectPrompt by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf<VideoEffectCategory?>(null) }
     var bindToSelectedClip by remember { mutableStateOf(false) }
     var pendingIntensity by remember { mutableFloatStateOf(0.82f) }
@@ -156,161 +153,6 @@ fun VideoEffectsStudioPanel(viewModel: NovaCutViewModel) {
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        // AI-Powered Custom Video Effect Generator Bar
-        Surface(
-            color = NovaSurface,
-            shape = RoundedCornerShape(14.dp),
-            modifier = Modifier
-                .fillMaxWidth()
-                .border(
-                    1.dp,
-                    Brush.horizontalGradient(listOf(NovaCyan, NovaMagenta)),
-                    RoundedCornerShape(14.dp)
-                )
-        ) {
-            Column(
-                modifier = Modifier.padding(10.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.AutoAwesome,
-                            contentDescription = null,
-                            tint = NovaCyan,
-                            modifier = Modifier.size(15.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "AI CUSTOM VIDEO EFFECT GENERATOR (GEMINI 3.8)",
-                            style = MaterialTheme.typography.labelLarge,
-                            color = NovaCyan
-                        )
-                    }
-                    Surface(
-                        color = NovaEmerald.copy(alpha = 0.2f),
-                        shape = RoundedCornerShape(6.dp)
-                    ) {
-                        Text(
-                            text = "FREE AI",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = NovaEmerald,
-                            fontSize = 9.sp,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                        )
-                    }
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    OutlinedTextField(
-                        value = aiEffectPrompt,
-                        onValueChange = { aiEffectPrompt = it },
-                        placeholder = {
-                            Text(
-                                "Describe custom effect (e.g. Golden anamorphic bloom + cyber glitch)",
-                                color = NovaTextMuted,
-                                fontSize = 11.sp
-                            )
-                        },
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = NovaCyan,
-                            unfocusedBorderColor = NovaBorder,
-                            focusedTextColor = NovaTextPrimary,
-                            unfocusedTextColor = NovaTextPrimary
-                        ),
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(48.dp)
-                            .testTag("ai_custom_effect_prompt_input")
-                    )
-
-                    Button(
-                        onClick = {
-                            val promptToRun = aiEffectPrompt.ifBlank {
-                                "Golden cinema lens flare with neon purple chromatic aberration"
-                            }
-                            viewModel.runAiCustomEffectGenerator(promptToRun)
-                        },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = NovaCyan,
-                            contentColor = Color(0xFF1A1200)
-                        ),
-                        shape = RoundedCornerShape(10.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                        modifier = Modifier
-                            .height(46.dp)
-                            .testTag("generate_ai_custom_effect_button")
-                    ) {
-                        Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(14.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Create FX", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
-                    }
-                }
-
-                if (aiTaskState is com.example.ai.AiTaskState.Running) {
-                    LinearProgressIndicator(
-                        color = NovaCyan,
-                        trackColor = NovaSurfaceElevated,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-
-                if (customAiEffects.isNotEmpty()) {
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(customAiEffects, key = { it.id }) { customFx ->
-                            val primaryC = Color(customFx.tintColorHex)
-                            Surface(
-                                color = NovaSurfaceElevated,
-                                shape = RoundedCornerShape(10.dp),
-                                modifier = Modifier
-                                    .clickable {
-                                        viewModel.applyAiCustomEffectToTimeline(
-                                            customEffect = customFx,
-                                            bindToSelectedClip = bindToSelectedClip
-                                        )
-                                    }
-                                    .border(1.dp, primaryC, RoundedCornerShape(10.dp))
-                                    .padding(horizontal = 10.dp, vertical = 6.dp)
-                                    .testTag("custom_ai_effect_chip_${customFx.id}")
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = Icons.Default.AutoAwesome,
-                                        contentDescription = null,
-                                        tint = primaryC,
-                                        modifier = Modifier.size(13.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(5.dp))
-                                    Column {
-                                        Text(
-                                            text = customFx.effectName,
-                                            style = MaterialTheme.typography.labelMedium,
-                                            color = NovaTextPrimary
-                                        )
-                                        Text(
-                                            text = "+ Stack AI Shader",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = primaryC,
-                                            fontSize = 9.sp
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
         // Search Bar & Effects Store Shortcut
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -320,7 +162,7 @@ fun VideoEffectsStudioPanel(viewModel: NovaCutViewModel) {
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
-                placeholder = { Text("Search 32 effects (Glitch, VHS, Flare, AI...)", color = NovaTextMuted, fontSize = 12.sp) },
+                placeholder = { Text("Search 32 effects (Glitch, VHS, Flare, Neon...)", color = NovaTextMuted, fontSize = 12.sp) },
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = NovaCyan, modifier = Modifier.size(16.dp)) },
                 singleLine = true,
                 colors = OutlinedTextFieldDefaults.colors(

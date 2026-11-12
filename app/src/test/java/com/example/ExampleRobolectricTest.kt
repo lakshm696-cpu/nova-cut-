@@ -3,10 +3,8 @@ package com.example
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
-import com.example.model.AppScreen
-import com.example.model.AspectRatioPreset
 import com.example.model.FilterPreset
-import org.junit.Assert.assertEquals
+import com.example.ui.components.buildFilterPresetMedia3Effects
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -38,5 +36,22 @@ class ExampleRobolectricTest {
         composeTestRule.onNodeWithTag("video_preview_stage").assertExists()
         composeTestRule.onNodeWithTag("media3_timeline_video_player").assertExists()
         composeTestRule.onNodeWithTag("multi_track_timeline").assertExists()
+
+        // Open the Video Filters Bottom Sheet via the Filters tab
+        composeTestRule.onNodeWithTag("editor_tab_FILTERS").performClick()
+        composeTestRule.waitForIdle()
+
+        // Verify the Bottom Sheet and selectable grid of video filters render
+        composeTestRule.onNodeWithTag("video_filters_bottom_sheet").assertExists()
+        composeTestRule.onNodeWithTag("video_filters_grid").assertExists()
+        composeTestRule.onNodeWithTag("filter_grid_item_TEAL_ORANGE").performClick()
+        composeTestRule.waitForIdle()
+
+        // Verify Media3 Effect transformations are constructed for FilterPreset
+        val tealEffects = buildFilterPresetMedia3Effects(
+            preset = FilterPreset.TEAL_ORANGE,
+            intensity = 1.0f
+        )
+        assertTrue(tealEffects.isNotEmpty())
     }
 }

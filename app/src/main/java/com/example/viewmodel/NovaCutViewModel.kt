@@ -6,8 +6,6 @@ import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.ai.AiTaskState
-import com.example.ai.NovaCutAiService
 import com.example.data.local.NovaCutDatabase
 import com.example.data.local.ProjectEntity
 import com.example.data.local.ProjectRepository
@@ -18,9 +16,6 @@ import com.example.media.StudioSampleVideo
 import com.example.media.VideoExportEngine
 import com.example.media.VoiceRecorderManager
 import android.content.Context
-import com.example.model.AiCustomVideoEffect
-import com.example.model.AiEnhancementSuggestion
-import com.example.model.AiSceneCut
 import com.example.model.AppScreen
 import com.example.model.AspectRatioPreset
 import com.example.model.AudioTrackItem
@@ -64,7 +59,6 @@ class NovaCutViewModel(application: Application) : AndroidViewModel(application)
 
     private val database = NovaCutDatabase.getInstance(application)
     private val repository = ProjectRepository(database.projectDao())
-    private val aiService = NovaCutAiService()
     private val voiceRecorder = VoiceRecorderManager(application)
 
     val savedProjects: StateFlow<List<ProjectEntity>> = repository.allProjects.stateIn(
@@ -152,6 +146,10 @@ class NovaCutViewModel(application: Application) : AndroidViewModel(application)
     private val _previewingSfxId = MutableStateFlow<String?>(null)
     val previewingSfxId: StateFlow<String?> = _previewingSfxId.asStateFlow()
 
+    // Video Filters Bottom Sheet State (Media3 Effect Filter Grid)
+    private val _showFiltersBottomSheet = MutableStateFlow(false)
+    val showFiltersBottomSheet: StateFlow<Boolean> = _showFiltersBottomSheet.asStateFlow()
+
     // Playback & Timeline State
     private val _isPlaying = MutableStateFlow(false)
     val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
@@ -187,37 +185,6 @@ class NovaCutViewModel(application: Application) : AndroidViewModel(application)
 
     private var voiceTimerJob: Job? = null
     private var playbackTickerJob: Job? = null
-
-    // AI Studio State & Custom AI Effects Generator
-    private val _aiTaskState = MutableStateFlow<AiTaskState>(AiTaskState.Idle)
-    val aiTaskState: StateFlow<AiTaskState> = _aiTaskState.asStateFlow()
-
-    private val _detectedScenes = MutableStateFlow<List<AiSceneCut>>(emptyList())
-    val detectedScenes: StateFlow<List<AiSceneCut>> = _detectedScenes.asStateFlow()
-
-    private val _aiEnhancement = MutableStateFlow<AiEnhancementSuggestion?>(null)
-    val aiEnhancement: StateFlow<AiEnhancementSuggestion?> = _aiEnhancement.asStateFlow()
-
-    private val _customAiEffects = MutableStateFlow<List<AiCustomVideoEffect>>(
-        listOf(
-            AiCustomVideoEffect(
-                userPrompt = "Golden anamorphic cinema lens flare with warm halation and subtle film grain",
-                effectName = "24K Gold Anamorphic Bloom",
-                tagline = "Warm golden halation with cinema flare & 35mm grain",
-                baseEffectType = VideoEffectType.ANAMORPHIC_LENS,
-                tintColorHex = 0xFFD6B46A,
-                bloomIntensity = 0.86f,
-                glitchIntensity = 0.0f,
-                grainAmount = 0.22f,
-                vignetteAmount = 0.48f,
-                shakeIntensity = 0.0f,
-                zoomPulse = 0.15f,
-                scanlinesIntensity = 0.0f,
-                chromaticShift = 0.25f
-            )
-        )
-    )
-    val customAiEffects: StateFlow<List<AiCustomVideoEffect>> = _customAiEffects.asStateFlow()
 
     // Export State
     private val _exportState = MutableStateFlow<ExportState>(ExportState.Idle)
@@ -1261,15 +1228,60 @@ class NovaCutViewModel(application: Application) : AndroidViewModel(application)
         showStatus("Removed effect from Effects Timeline")
     }
 
-    // Color Filters, Adjustments & Chroma Key (Stage 3)
+    // Color Filters, Media3 Effect Transformations, Adjustments & Chroma Key (Stage 3)
+    fun openFiltersBottomSheet() {
+        _showFiltersBottomSheet.value = true
+    }
+
+    fun closeFiltersBottomSheet() {
+        _showFiltersBottomSheet.value = false
+    }
+
     fun updateSelectedClipFilter(filter: FilterPreset, applyToAll: Boolean = false) {
         val clip = getSelectedClip() ?: return
-        recordSnapshot("Apply filter ${filter.label}")
+        recordSnapshot("Apply Media3 filter ${filter.label}")
         _videoClips.value = _videoClips.value.map {
-            if (applyToAll || it.id == clip.id) it.copy(filterPreset = filter) else it
+            if (applyToAll || it.id == clip.id) {
+                it.copy(
+                    filterPreset = filter,
+                    filterIntensity = if (filter == FilterPreset.ORIGINAL) 1.0f else it.filterIntensity.coerceIn(0.1f, 1.0f)
+                )
+            } else it
         }
         saveCurrentProjectToRoom()
-        showStatus("Applied '${filter.label}' LUT ${if (applyToAll) "to all clips" else ""}")
+        showStatus(
+            "Applied '${filter.label}' Media3 Effect (${filter.effectSummary})${if (applyToAll) " to all track clips" else ""}"
+        )
+    }
+
+    fun updateSelectedClipFilterIntensity(intensity: Float, applyToAll: Boolean = false) {
+        val clip = getSelectedClip() ?: return
+        val clamped = intensity.coerceIn(0.0f, 1.0f)
+        _videoClips.value = _videoClips.value.map {
+            if (applyToAll || it.id == clip.id) {
+                it.copy(filterIntensity = clamped)
+            } else it
+        }
+        saveCurrentProjectToRoom()
+    }
+
+    fun resetSelectedClipFilterAndColor(applyToAll: Boolean = false) {
+        val clip = getSelectedClip() ?: return
+        recordSnapshot("Reset filter & color grading")
+        _videoClips.value = _videoClips.value.map {
+            if (applyToAll || it.id == clip.id) {
+                it.copy(
+                    filterPreset = FilterPreset.ORIGINAL,
+                    filterIntensity = 1.0f,
+                    brightness = 0f,
+                    contrast = 1.0f,
+                    saturation = 1.0f,
+                    vignette = 0f
+                )
+            } else it
+        }
+        saveCurrentProjectToRoom()
+        showStatus("Reset active track Media3 filter & color grading to Original")
     }
 
     fun updateSelectedClipColorAdjustments(
@@ -1741,237 +1753,6 @@ class NovaCutViewModel(application: Application) : AndroidViewModel(application)
         recordSnapshot("Delete sticker")
         _stickerOverlays.value = _stickerOverlays.value.filterNot { it.id == id }
         saveCurrentProjectToRoom()
-    }
-
-    // AI Features via Firebase AI Logic (Stage 4 + AI Custom Effect Generator — 100% Free & Unlocked)
-    fun runAiCustomEffectGenerator(userPrompt: String) {
-        val cleanPrompt = userPrompt.trim()
-        if (cleanPrompt.isBlank()) {
-            showStatus("Describe the custom video effect you want AI to create")
-            return
-        }
-        val clip = getSelectedClip() ?: _videoClips.value.firstOrNull()
-        viewModelScope.launch {
-            _aiTaskState.value = AiTaskState.Running("Synthesizing custom shader '${cleanPrompt.take(36)}' with Gemini 3.8 Flash...")
-            val context = getApplication<Application>()
-            val frames = if (clip != null) {
-                ProceduralMediaGenerator.extractFramesForAi(
-                    context = context,
-                    uriString = clip.uriString,
-                    count = 1
-                )
-            } else emptyList()
-
-            val result = aiService.generateCustomVideoEffectFromPrompt(
-                userPrompt = cleanPrompt,
-                sampleFrame = frames.firstOrNull()
-            )
-            result.fold(
-                onSuccess = { generatedEffect ->
-                    _customAiEffects.value = listOf(generatedEffect) + _customAiEffects.value
-                    applyAiCustomEffectToTimeline(generatedEffect)
-                    _aiTaskState.value = AiTaskState.Success(
-                        "Created & stacked AI Effect '${generatedEffect.effectName}' on your timeline!"
-                    )
-                },
-                onFailure = { err ->
-                    Log.e(TAG, "AI Custom Effect Generator error", err)
-                    _aiTaskState.value = AiTaskState.Error(
-                        err.localizedMessage ?: "AI Custom Effect generation failed."
-                    )
-                }
-            )
-        }
-    }
-
-    fun applyAiCustomEffectToTimeline(
-        customEffect: AiCustomVideoEffect,
-        durationMs: Long = 3500L,
-        bindToSelectedClip: Boolean = false
-    ) {
-        recordSnapshot("Add AI Custom FX ${customEffect.effectName}")
-        val selectedClip = getSelectedClip()
-        val start = if (bindToSelectedClip && selectedClip != null) {
-            selectedClip.timelineStartMs
-        } else {
-            _playheadMs.value
-        }
-        val end = if (bindToSelectedClip && selectedClip != null) {
-            selectedClip.timelineEndMs
-        } else {
-            (start + durationMs).coerceAtMost(totalTimelineDurationMs.coerceAtLeast(3500L))
-        }
-
-        val fxItem = VideoEffectItem(
-            effectType = customEffect.baseEffectType,
-            startTimeMs = start,
-            endTimeMs = end.coerceAtLeast(start + 500L),
-            intensity = 0.85f,
-            targetClipId = if (bindToSelectedClip) selectedClip?.id else null,
-            customEffectName = customEffect.effectName,
-            customPrompt = customEffect.userPrompt,
-            customTintHex = customEffect.tintColorHex,
-            customBloom = customEffect.bloomIntensity,
-            customGlitch = customEffect.glitchIntensity,
-            customGrain = customEffect.grainAmount,
-            customVignette = customEffect.vignetteAmount,
-            customShake = customEffect.shakeIntensity,
-            customZoomPulse = customEffect.zoomPulse,
-            customScanlines = customEffect.scanlinesIntensity,
-            customChromatic = customEffect.chromaticShift
-        )
-        _videoEffects.value = _videoEffects.value + fxItem
-        _selectedEffectId.value = fxItem.id
-        saveCurrentProjectToRoom()
-        showStatus("Applied AI Custom Effect '${customEffect.effectName}' to Effects Timeline")
-    }
-
-    fun runAiAutoSubtitles() {
-        val clips = _videoClips.value
-        if (clips.isEmpty()) {
-            showStatus("Add a video clip first to generate AI subtitles")
-            return
-        }
-        viewModelScope.launch {
-            _aiTaskState.value = AiTaskState.Running("Analyzing video & generating timed AI Captions with Gemini 3.8 Flash...")
-            val context = getApplication<Application>()
-            val frames = ProceduralMediaGenerator.extractFramesForAi(
-                context = context,
-                uriString = clips.first().uriString,
-                count = 1
-            )
-            val result = aiService.generateAutoSubtitles(
-                projectTitle = _projectTitle.value,
-                clipTitles = clips.map { it.title },
-                totalDurationMs = totalTimelineDurationMs,
-                sampleFrame = frames.firstOrNull()
-            )
-            result.fold(
-                onSuccess = { generatedSubs ->
-                    recordSnapshot("AI Auto Subtitles")
-                    val nonSubTexts = _textOverlays.value.filterNot { it.isSubtitle }
-                    _textOverlays.value = nonSubTexts + generatedSubs
-                    saveCurrentProjectToRoom()
-                    _aiTaskState.value = AiTaskState.Success(
-                        "Generated ${generatedSubs.size} timed AI subtitle segments on the CC track!"
-                    )
-                },
-                onFailure = { err ->
-                    Log.e(TAG, "AI Auto Subtitles error", err)
-                    _aiTaskState.value = AiTaskState.Error(
-                        err.localizedMessage ?: "AI Subtitle generation failed."
-                    )
-                }
-            )
-        }
-    }
-
-    fun runAiSceneDetection() {
-        val clip = getSelectedClip() ?: _videoClips.value.firstOrNull()
-        if (clip == null) {
-            showStatus("Select a video clip first for AI Scene Detection")
-            return
-        }
-        viewModelScope.launch {
-            _aiTaskState.value = AiTaskState.Running("Extracting frames & detecting scene cuts + highlights with Gemini 3.8 Flash...")
-            val context = getApplication<Application>()
-            val frames = ProceduralMediaGenerator.extractFramesForAi(
-                context = context,
-                uriString = clip.uriString,
-                count = 3
-            )
-            val result = aiService.detectScenesAndHighlights(
-                clipTitle = clip.title,
-                durationMs = clip.effectiveDurationMs,
-                frames = frames
-            )
-            result.fold(
-                onSuccess = { scenes ->
-                    _detectedScenes.value = scenes
-                    _aiTaskState.value = AiTaskState.Success(
-                        "Detected ${scenes.size} scenes (${scenes.count { it.isHighlight }} highlight moments)."
-                    )
-                },
-                onFailure = { err ->
-                    Log.e(TAG, "AI Scene Detection error", err)
-                    _aiTaskState.value = AiTaskState.Error(
-                        err.localizedMessage ?: "AI Scene Detection failed."
-                    )
-                }
-            )
-        }
-    }
-
-    fun applyDetectedHighlightToTimeline(sceneCut: AiSceneCut) {
-        seekTo(sceneCut.timestampMs)
-        splitSelectedClipAtPlayhead()
-        val selected = getSelectedClip()
-        if (selected != null) {
-            _videoClips.value = _videoClips.value.map {
-                if (it.id == selected.id) it.copy(isHighlight = sceneCut.isHighlight) else it
-            }
-            saveCurrentProjectToRoom()
-        }
-        showStatus("Split & marked AI Highlight: ${sceneCut.label}")
-    }
-
-    fun runAiVideoEnhancement() {
-        val clip = getSelectedClip() ?: _videoClips.value.firstOrNull()
-        if (clip == null) {
-            showStatus("Select a video clip first for AI Enhancement")
-            return
-        }
-        viewModelScope.launch {
-            _aiTaskState.value = AiTaskState.Running("Analyzing frame dynamic range & color grade with Gemini 3.8 Flash...")
-            val context = getApplication<Application>()
-            val frames = ProceduralMediaGenerator.extractFramesForAi(
-                context = context,
-                uriString = clip.uriString,
-                count = 1
-            )
-            val result = aiService.analyzeAndEnhanceVideo(
-                clipTitle = clip.title,
-                currentFilter = clip.filterPreset,
-                sampleFrame = frames.firstOrNull()
-            )
-            result.fold(
-                onSuccess = { suggestion ->
-                    _aiEnhancement.value = suggestion
-                    _aiTaskState.value = AiTaskState.Success(
-                        "AI Colorist recommends '${suggestion.recommendedFilter.label}' LUT."
-                    )
-                },
-                onFailure = { err ->
-                    Log.e(TAG, "AI Video Enhancement error", err)
-                    _aiTaskState.value = AiTaskState.Error(
-                        err.localizedMessage ?: "AI Video Enhancement failed."
-                    )
-                }
-            )
-        }
-    }
-
-    fun applyAiEnhancementSuggestion(suggestion: AiEnhancementSuggestion) {
-        recordSnapshot("Apply AI Colorist Enhancement")
-        _videoClips.value = _videoClips.value.map { clip ->
-            clip.copy(
-                filterPreset = suggestion.recommendedFilter,
-                brightness = suggestion.recommendedBrightness,
-                contrast = suggestion.recommendedContrast,
-                saturation = suggestion.recommendedSaturation
-            )
-        }
-        addVideoEffectToTimeline(VideoEffectType.AI_VIDEO_ENHANCE, intensity = 0.85f)
-        if (suggestion.suggestedHookTitle.isNotBlank()) {
-            addTextOverlay(
-                text = suggestion.suggestedHookTitle,
-                fontChoice = FontChoice.BEBAS_NEUE,
-                animationType = TextAnimationType.NEON_FLICKER,
-                colorHex = 0xFF00F0FF
-            )
-        }
-        saveCurrentProjectToRoom()
-        showStatus("Applied AI Color Grade (${suggestion.recommendedFilter.label}), AI Super Clarity FX & Hook Title")
     }
 
     // Export Settings & Media3 Transformer MP4 Export (Stage 1 & Stage 5)

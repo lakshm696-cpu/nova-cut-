@@ -21,7 +21,6 @@ enum class AppScreen {
     AUDIO_LIBRARY,
     TEXT_STICKER_EDITOR,
     FILTERS_EFFECTS,
-    AI_STUDIO,
     EFFECTS_STORE,
     EXPORT_SETTINGS,
     EXPORT_PROGRESS,
@@ -29,7 +28,7 @@ enum class AppScreen {
 }
 
 /**
- * Complete NOVACUT Studio Toolbar with all 14 creative studio modules (100% Free & Unlocked).
+ * Complete NOVACUT Studio Toolbar with all 13 creative studio modules (100% Free & Unlocked).
  */
 enum class EditorBottomTab(val label: String) {
     TIMELINE("Edit"),
@@ -42,7 +41,6 @@ enum class EditorBottomTab(val label: String) {
     STICKERS("Stickers"),
     SPEED("Speed"),
     COLOR("Color"),
-    AI_TOOLS("AI Tools"),
     SFX_STUDIO("Sound FX"),
     FX_STORE("FX Store"),
     EXPORT("Export")
@@ -135,7 +133,7 @@ enum class TransitionType(val label: String, val defaultDurationMs: Long, val ba
 enum class VideoEffectCategory(val label: String, val accentHex: Long) {
     CINEMATIC("Cinematic", 0xFFD6B46A),
     TRENDING("Trending", 0xFF9B75FF),
-    AI_CREATIVE("AI Effects", 0xFFB99CFF),
+    AI_CREATIVE("Creative", 0xFFB99CFF),
     GLITCH("Glitch", 0xFFFF5A67),
     VINTAGE("Vintage", 0xFFD99B4E),
     NEON("Neon", 0xFF9B75FF),
@@ -297,16 +295,16 @@ enum class VideoEffectType(
         extraCategories = setOf(VideoEffectCategory.GLITCH)
     ),
 
-    // 3. AI and Creative Effects
+    // 3. Creative & Stylize Effects
     BG_BLUR(
-        "AI Bokeh Portrait",
+        "Bokeh Portrait",
         VideoEffectCategory.AI_CREATIVE,
-        "Depth-aware background defocus",
+        "Depth-style background defocus",
         0xFF9B75FF,
         isTrending = true
     ),
     BG_REPLACEMENT(
-        "AI Cyber Backdrop",
+        "Cyber Backdrop",
         VideoEffectCategory.AI_CREATIVE,
         "Virtual studio neon grid composite",
         0xFF9B75FF,
@@ -328,9 +326,9 @@ enum class VideoEffectType(
         extraCategories = setOf(VideoEffectCategory.VINTAGE)
     ),
     FACE_TRACKING(
-        "AI Face Lock HUD",
+        "Face Lock HUD",
         VideoEffectCategory.AI_CREATIVE,
-        "Dynamic biometric focus stabilizer",
+        "Dynamic biometric focus frame",
         0xFFD6B46A,
         isNew = true
     ),
@@ -343,15 +341,15 @@ enum class VideoEffectType(
         extraCategories = setOf(VideoEffectCategory.MOTION)
     ),
     AI_BG_REMOVAL(
-        "AI Cutout Glow",
+        "Cutout Glow",
         VideoEffectCategory.AI_CREATIVE,
-        "Zero-green-screen subject isolation",
+        "Edge-highlighted subject isolation",
         0xFFD6B46A,
         isPremium = false,
         extraCategories = setOf(VideoEffectCategory.NEON)
     ),
     AI_VIDEO_ENHANCE(
-        "AI Super Clarity",
+        "Super Clarity",
         VideoEffectCategory.AI_CREATIVE,
         "HDR micro-contrast & detail boost",
         0xFFD6B46A,
@@ -420,30 +418,7 @@ enum class VideoEffectType(
 }
 
 /**
- * Custom AI-Generated Video Effect recipe created from a user's natural-language text description
- * via Firebase AI Logic (`gemini-3.8-flash`).
- */
-data class AiCustomVideoEffect(
-    val id: String = UUID.randomUUID().toString(),
-    val userPrompt: String,
-    val effectName: String,
-    val tagline: String,
-    val baseEffectType: VideoEffectType,
-    val tintColorHex: Long = 0xFFD6B46A,
-    val bloomIntensity: Float = 0.65f,
-    val glitchIntensity: Float = 0.0f,
-    val grainAmount: Float = 0.25f,
-    val vignetteAmount: Float = 0.35f,
-    val shakeIntensity: Float = 0.0f,
-    val zoomPulse: Float = 0.15f,
-    val scanlinesIntensity: Float = 0.0f,
-    val chromaticShift: Float = 0.2f,
-    val recommendedSfxId: String = "sfx_cin_impact"
-)
-
-/**
  * Stackable, timeline-draggable Video Effect instance placed on the Effects Timeline track.
- * Supports both built-in effects and custom AI Text-to-Effect shader recipes.
  */
 data class VideoEffectItem(
     val id: String = UUID.randomUUID().toString(),
@@ -635,8 +610,8 @@ val BuiltInEffectStorePacks: List<EffectStorePack> = listOf(
     ),
     EffectStorePack(
         id = "pack_ai_motion_tracker",
-        title = "AI Biometric HUD & Velocity",
-        subtitle = "Face Tracking HUD, Object Lock, AI Bokeh + Whip Transitions",
+        title = "Biometric HUD & Velocity",
+        subtitle = "Face Tracking HUD, Object Lock, Bokeh + Whip Transitions",
         badge = "NEW",
         accentHex = 0xFFD6B46A,
         previewResId = R.drawable.img_hero_studio_banner_1794471447657,
@@ -675,16 +650,204 @@ enum class FilterPreset(
     val gScale: Float,
     val bScale: Float,
     val saturationBoost: Float,
-    val contrastBoost: Float
+    val contrastBoost: Float,
+    val hueShiftDegrees: Float = 0f,
+    val isGrayscale: Boolean = false,
+    val isInverted: Boolean = false,
+    val accentHex: Long = 0xFFD6B46A,
+    val effectSummary: String = "RgbAdjustment + Contrast + HslAdjustment"
 ) {
-    ORIGINAL("Original", "None", 1.0f, 1.0f, 1.0f, 1.0f, 1.0f),
-    CYBERPUNK_NEON("Royal Amethyst", "Luxury", 1.06f, 0.96f, 1.32f, 1.30f, 1.18f),
-    TEAL_ORANGE("Teal & Gold", "Cinema", 1.18f, 1.06f, 0.88f, 1.25f, 1.15f),
-    GOLDEN_HOUR("24K Champagne", "Warm", 1.24f, 1.12f, 0.82f, 1.20f, 1.10f),
-    VINTAGE_KODAK("Kodak 2383", "Film", 1.12f, 1.06f, 0.90f, 0.88f, 1.12f),
-    NOIR_CONTRAST("Obsidian Noir", "B&W", 1.0f, 1.0f, 1.0f, 0.0f, 1.35f),
-    DREAMY_PASTEL("Velvet Glow", "Aesthetic", 1.08f, 1.05f, 1.14f, 0.88f, 0.94f),
-    MATRIX_GREEN("Emerald Studio", "LUT", 0.82f, 1.26f, 0.88f, 1.15f, 1.20f)
+    ORIGINAL(
+        label = "Original",
+        category = "None",
+        rScale = 1.0f,
+        gScale = 1.0f,
+        bScale = 1.0f,
+        saturationBoost = 1.0f,
+        contrastBoost = 1.0f,
+        accentHex = 0xFFA4A7B3,
+        effectSummary = "Bypass (Identity Matrix)"
+    ),
+    CYBERPUNK_NEON(
+        label = "Royal Amethyst",
+        category = "Luxury",
+        rScale = 1.08f,
+        gScale = 0.94f,
+        bScale = 1.34f,
+        saturationBoost = 1.32f,
+        contrastBoost = 1.18f,
+        hueShiftDegrees = -12f,
+        accentHex = 0xFF9B75FF,
+        effectSummary = "RgbAdjustment + HslAdjustment + Contrast"
+    ),
+    TEAL_ORANGE(
+        label = "Teal & Gold",
+        category = "Cinema",
+        rScale = 1.18f,
+        gScale = 1.06f,
+        bScale = 0.88f,
+        saturationBoost = 1.25f,
+        contrastBoost = 1.16f,
+        hueShiftDegrees = 6f,
+        accentHex = 0xFFD6B46A,
+        effectSummary = "RgbAdjustment + Contrast + HslAdjustment"
+    ),
+    GOLDEN_HOUR(
+        label = "24K Champagne",
+        category = "Warm",
+        rScale = 1.26f,
+        gScale = 1.14f,
+        bScale = 0.80f,
+        saturationBoost = 1.22f,
+        contrastBoost = 1.10f,
+        hueShiftDegrees = 8f,
+        accentHex = 0xFFF0D799,
+        effectSummary = "RgbAdjustment + HslAdjustment"
+    ),
+    VINTAGE_KODAK(
+        label = "Kodak 2383",
+        category = "Film",
+        rScale = 1.14f,
+        gScale = 1.06f,
+        bScale = 0.88f,
+        saturationBoost = 0.86f,
+        contrastBoost = 1.14f,
+        hueShiftDegrees = 4f,
+        accentHex = 0xFFD99B4E,
+        effectSummary = "RgbAdjustment + Contrast + HslAdjustment"
+    ),
+    NOIR_CONTRAST(
+        label = "Obsidian Noir",
+        category = "B&W",
+        rScale = 1.0f,
+        gScale = 1.0f,
+        bScale = 1.0f,
+        saturationBoost = 0.0f,
+        contrastBoost = 1.38f,
+        isGrayscale = true,
+        accentHex = 0xFFE2E8F0,
+        effectSummary = "RgbFilter.Grayscale + Contrast"
+    ),
+    DREAMY_PASTEL(
+        label = "Velvet Glow",
+        category = "Aesthetic",
+        rScale = 1.10f,
+        gScale = 1.04f,
+        bScale = 1.16f,
+        saturationBoost = 0.86f,
+        contrastBoost = 0.92f,
+        hueShiftDegrees = -6f,
+        accentHex = 0xFFB99CFF,
+        effectSummary = "RgbAdjustment + Soft Contrast"
+    ),
+    MATRIX_GREEN(
+        label = "Emerald Studio",
+        category = "LUT",
+        rScale = 0.82f,
+        gScale = 1.28f,
+        bScale = 0.88f,
+        saturationBoost = 1.16f,
+        contrastBoost = 1.22f,
+        hueShiftDegrees = 14f,
+        accentHex = 0xFF10B981,
+        effectSummary = "RgbAdjustment + HslAdjustment + Contrast"
+    ),
+    TOKYO_MIDNIGHT(
+        label = "Tokyo Midnight",
+        category = "Cyber",
+        rScale = 0.86f,
+        gScale = 1.12f,
+        bScale = 1.38f,
+        saturationBoost = 1.36f,
+        contrastBoost = 1.24f,
+        hueShiftDegrees = -18f,
+        accentHex = 0xFF00F0FF,
+        effectSummary = "RgbAdjustment + HslAdjustment(-18°)"
+    ),
+    SAHARA_WARMTH(
+        label = "Sahara Amber",
+        category = "Warm",
+        rScale = 1.30f,
+        gScale = 1.08f,
+        bScale = 0.76f,
+        saturationBoost = 1.28f,
+        contrastBoost = 1.15f,
+        hueShiftDegrees = 12f,
+        accentHex = 0xFFF59E0B,
+        effectSummary = "RgbAdjustment + Warm Hue(+12°)"
+    ),
+    ARCTIC_CINEMA(
+        label = "Arctic Cinema",
+        category = "Cinema",
+        rScale = 0.84f,
+        gScale = 1.08f,
+        bScale = 1.32f,
+        saturationBoost = 0.92f,
+        contrastBoost = 1.26f,
+        hueShiftDegrees = -10f,
+        accentHex = 0xFF38BDF8,
+        effectSummary = "RgbAdjustment + High Contrast"
+    ),
+    FUJI_ETERNA(
+        label = "Fuji Eterna",
+        category = "Film",
+        rScale = 0.96f,
+        gScale = 1.12f,
+        bScale = 1.06f,
+        saturationBoost = 0.82f,
+        contrastBoost = 1.06f,
+        hueShiftDegrees = 5f,
+        accentHex = 0xFF34D399,
+        effectSummary = "RgbAdjustment + Cinema Desat"
+    ),
+    ROSE_QUARTZ(
+        label = "Rose Quartz",
+        category = "Luxury",
+        rScale = 1.24f,
+        gScale = 0.94f,
+        bScale = 1.14f,
+        saturationBoost = 1.18f,
+        contrastBoost = 1.08f,
+        hueShiftDegrees = -8f,
+        accentHex = 0xFFF472B6,
+        effectSummary = "RgbAdjustment + Rose Hue(-8°)"
+    ),
+    SILVER_HALIDE(
+        label = "Silver Halide",
+        category = "B&W",
+        rScale = 1.12f,
+        gScale = 1.12f,
+        bScale = 1.16f,
+        saturationBoost = 0.0f,
+        contrastBoost = 1.24f,
+        isGrayscale = true,
+        accentHex = 0xFFCBD5E1,
+        effectSummary = "RgbFilter.Grayscale + Silver Gain"
+    ),
+    ANAMORPHIC_TEAL(
+        label = "Blockbuster LUT",
+        category = "LUT",
+        rScale = 1.20f,
+        gScale = 1.02f,
+        bScale = 1.18f,
+        saturationBoost = 1.34f,
+        contrastBoost = 1.28f,
+        hueShiftDegrees = -4f,
+        accentHex = 0xFFD6B46A,
+        effectSummary = "RgbAdjustment + Master Contrast"
+    ),
+    CYBER_INVERT(
+        label = "Solarize Neg",
+        category = "Cyber",
+        rScale = 1.10f,
+        gScale = 0.95f,
+        bScale = 1.25f,
+        saturationBoost = 1.35f,
+        contrastBoost = 1.25f,
+        isInverted = true,
+        accentHex = 0xFFFF5A67,
+        effectSummary = "RgbFilter.Inverted + RgbAdjustment"
+    )
 }
 
 enum class FontChoice(val label: String) {
@@ -732,6 +895,7 @@ data class VideoClip(
     val transitionIn: TransitionType = TransitionType.NONE,
     val transitionDurationMs: Long = 500L,
     val filterPreset: FilterPreset = FilterPreset.ORIGINAL,
+    val filterIntensity: Float = 1.0f, // 0.0f to 1.0f strength of Media3 Effect filter transformation
     val brightness: Float = 0f, // -0.5f to +0.5f
     val contrast: Float = 1.0f, // 0.5f to 1.8f
     val saturation: Float = 1.0f, // 0.0f to 2.0f
@@ -768,6 +932,7 @@ data class VideoClip(
         put("transitionIn", transitionIn.name)
         put("transitionDurationMs", transitionDurationMs)
         put("filterPreset", filterPreset.name)
+        put("filterIntensity", filterIntensity.toDouble())
         put("brightness", brightness.toDouble())
         put("contrast", contrast.toDouble())
         put("saturation", saturation.toDouble())
@@ -808,6 +973,7 @@ data class VideoClip(
                 transitionDurationMs = obj.optLong("transitionDurationMs", mappedTrans.defaultDurationMs.coerceAtLeast(350L)),
                 filterPreset = runCatching { FilterPreset.valueOf(obj.optString("filterPreset", "ORIGINAL")) }
                     .getOrDefault(FilterPreset.ORIGINAL),
+                filterIntensity = obj.optDouble("filterIntensity", 1.0).toFloat().coerceIn(0f, 1f),
                 brightness = obj.optDouble("brightness", 0.0).toFloat(),
                 contrast = obj.optDouble("contrast", 1.0).toFloat(),
                 saturation = obj.optDouble("saturation", 1.0).toFloat(),
@@ -1032,24 +1198,6 @@ data class SmartTemplate(
     val isPremium: Boolean = false
 )
 
-data class AiSceneCut(
-    val timestampMs: Long,
-    val label: String,
-    val confidenceScore: Float,
-    val isHighlight: Boolean,
-    val reason: String
-)
-
-data class AiEnhancementSuggestion(
-    val summary: String,
-    val recommendedFilter: FilterPreset,
-    val recommendedBrightness: Float,
-    val recommendedContrast: Float,
-    val recommendedSaturation: Float,
-    val pacingAdvice: String,
-    val suggestedHookTitle: String
-)
-
 data class EditorSnapshot(
     val description: String,
     val videoClips: List<VideoClip>,
@@ -1096,7 +1244,7 @@ val BuiltInSmartTemplates = listOf(
     SmartTemplate(
         id = "tpl_creator_reel",
         title = "Creator Hook & Captions",
-        category = "Reels • AI CC",
+        category = "Reels • Captions",
         subtitle = "Dynamic Gold Captions • Smooth Zoom Cuts • 60 FPS",
         aspectRatio = AspectRatioPreset.RATIO_9_16,
         bpm = 120,

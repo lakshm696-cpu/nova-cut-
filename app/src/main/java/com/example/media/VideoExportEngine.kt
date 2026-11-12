@@ -19,6 +19,7 @@ import androidx.media3.effect.Contrast
 import androidx.media3.effect.HslAdjustment
 import androidx.media3.effect.Presentation
 import androidx.media3.effect.RgbAdjustment
+import androidx.media3.effect.RgbFilter
 import androidx.media3.effect.ScaleAndRotateTransformation
 import androidx.media3.transformer.Composition
 import androidx.media3.transformer.EditedMediaItem
@@ -176,11 +177,21 @@ object VideoExportEngine {
             var scaleY = clip.cropScale
 
             val preset = clip.filterPreset
-            var rScale = preset.rScale + clip.brightness
-            var gScale = preset.gScale + clip.brightness
-            var bScale = preset.bScale + clip.brightness
-            var contrastDelta = (clip.contrast - 1.0f) + (preset.contrastBoost - 1.0f)
-            var satDelta = ((clip.saturation * preset.saturationBoost) - 1.0f) * 80f
+            val filterStrength = clip.filterIntensity.coerceIn(0f, 1f)
+            if (preset.isGrayscale && filterStrength >= 0.35f) {
+                media3Effects.add(RgbFilter.createGrayscaleFilter())
+            }
+            if (preset.isInverted && filterStrength >= 0.35f) {
+                media3Effects.add(RgbFilter.createInvertedFilter())
+            }
+
+            var rScale = (1.0f + (preset.rScale - 1.0f) * filterStrength) + clip.brightness
+            var gScale = (1.0f + (preset.gScale - 1.0f) * filterStrength) + clip.brightness
+            var bScale = (1.0f + (preset.bScale - 1.0f) * filterStrength) + clip.brightness
+            var contrastDelta = (clip.contrast - 1.0f) + ((preset.contrastBoost - 1.0f) * filterStrength)
+            val effectivePresetSat = 1.0f + (preset.saturationBoost - 1.0f) * filterStrength
+            var satDelta = ((clip.saturation * effectivePresetSat) - 1.0f) * 80f
+            val hueDelta = (preset.hueShiftDegrees * filterStrength).coerceIn(-180f, 180f)
 
             // Apply Transition spatial/color accents
             when (clip.transitionIn) {
@@ -308,14 +319,17 @@ object VideoExportEngine {
                 media3Effects.add(Contrast(clampedContrast))
             }
 
-            // 4. Add Saturation Adjustment
+            // 4. Add Hue & Saturation Adjustment
             val clampedSat = satDelta.coerceIn(-100f, 100f)
-            if (clampedSat != 0f) {
-                media3Effects.add(
-                    HslAdjustment.Builder()
-                        .adjustSaturation(clampedSat)
-                        .build()
-                )
+            if (clampedSat != 0f || hueDelta != 0f) {
+                val hslBuilder = HslAdjustment.Builder()
+                if (hueDelta != 0f) {
+                    hslBuilder.adjustHue(hueDelta)
+                }
+                if (clampedSat != 0f) {
+                    hslBuilder.adjustSaturation(clampedSat)
+                }
+                media3Effects.add(hslBuilder.build())
             }
 
             // 5. Target Resolution Presentation (720p / 1080p / 2K / 4K)

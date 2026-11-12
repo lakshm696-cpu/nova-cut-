@@ -136,6 +136,7 @@ fun VideoPreviewStage(
     onDragTextOverlay: (String, Float, Float) -> Unit,
     onDragStickerOverlay: (String, Float, Float) -> Unit,
     onTogglePlayback: (() -> Unit)? = null,
+    onOpenFiltersSheet: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     com.example.ui.components.VideoPlayer(
@@ -153,6 +154,7 @@ fun VideoPreviewStage(
         onDragTextOverlay = onDragTextOverlay,
         onDragStickerOverlay = onDragStickerOverlay,
         onTogglePlayback = onTogglePlayback,
+        onOpenFiltersSheet = onOpenFiltersSheet,
         modifier = modifier
     )
 }
@@ -570,7 +572,7 @@ fun MultiTrackTimeline(
                         ) {
                             if (videoEffects.isEmpty()) {
                                 Text(
-                                    text = "Effects Timeline (Tap 'Effects' tab to stack Glitch, Flare, VHS, AI...)",
+                                    text = "Effects Timeline (Tap 'Effects' tab to stack Glitch, Flare, VHS, Neon...)",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = NovaTextMuted,
                                     fontSize = 8.sp,
@@ -687,7 +689,7 @@ fun MultiTrackTimeline(
                         ) {
                             if (textOverlays.isEmpty()) {
                                 Text(
-                                    text = "Text & AI Subtitles Layer",
+                                    text = "Text & Subtitles Layer",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = NovaTextMuted,
                                     fontSize = 8.sp,

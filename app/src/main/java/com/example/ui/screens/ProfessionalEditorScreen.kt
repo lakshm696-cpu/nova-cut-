@@ -71,6 +71,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.model.AppScreen
 import com.example.model.EditorBottomTab
+import com.example.ui.components.VideoFiltersBottomSheet
 import com.example.ui.theme.NovaBorder
 import com.example.ui.theme.NovaCharcoal
 import com.example.ui.theme.NovaEmerald
@@ -109,6 +110,7 @@ fun ProfessionalEditorScreen(viewModel: NovaCutViewModel) {
     val canRedo by viewModel.canRedo.collectAsStateWithLifecycle()
     val activeBottomTab by viewModel.activeBottomTab.collectAsStateWithLifecycle()
     val statusBanner by viewModel.statusBanner.collectAsStateWithLifecycle()
+    val showFiltersBottomSheet by viewModel.showFiltersBottomSheet.collectAsStateWithLifecycle()
 
     val selectedClip = videoClips.firstOrNull { it.id == selectedClipId } ?: videoClips.firstOrNull()
     val activeClipAtPlayhead = viewModel.getActiveClipAtPlayhead()
@@ -127,6 +129,10 @@ fun ProfessionalEditorScreen(viewModel: NovaCutViewModel) {
                         EditorBottomTab.FX_STORE -> viewModel.navigateTo(AppScreen.EFFECTS_STORE)
                         EditorBottomTab.MEDIA -> viewModel.navigateTo(AppScreen.MEDIA_GALLERY)
                         EditorBottomTab.EXPORT -> viewModel.navigateTo(AppScreen.EXPORT_SETTINGS)
+                        EditorBottomTab.FILTERS -> {
+                            viewModel.selectBottomTab(tab)
+                            viewModel.openFiltersBottomSheet()
+                        }
                         else -> viewModel.selectBottomTab(tab)
                     }
                 }
@@ -300,6 +306,7 @@ fun ProfessionalEditorScreen(viewModel: NovaCutViewModel) {
                     onDragTextOverlay = { id, x, y -> viewModel.updateTextOverlayPosition(id, x, y) },
                     onDragStickerOverlay = { id, x, y -> viewModel.updateStickerPosition(id, x, y) },
                     onTogglePlayback = { viewModel.togglePlayback() },
+                    onOpenFiltersSheet = { viewModel.openFiltersBottomSheet() },
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(0.36f)
@@ -394,7 +401,6 @@ fun ProfessionalEditorScreen(viewModel: NovaCutViewModel) {
                             selectedClip = selectedClip,
                             focusChromaFirst = true
                         )
-                        EditorBottomTab.AI_TOOLS -> AiStudioPanel(viewModel = viewModel)
                         EditorBottomTab.EXPORT -> ClipEditToolbar(
                             viewModel = viewModel,
                             selectedClip = selectedClip,
@@ -427,6 +433,32 @@ fun ProfessionalEditorScreen(viewModel: NovaCutViewModel) {
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                     )
                 }
+            }
+
+            // Video Filters & Media3 Effect Grid Bottom Sheet
+            if (showFiltersBottomSheet) {
+                VideoFiltersBottomSheet(
+                    selectedClip = selectedClip ?: activeClipAtPlayhead,
+                    totalTrackClips = videoClips.size.coerceAtLeast(1),
+                    onSelectFilter = { preset, applyToAll ->
+                        viewModel.updateSelectedClipFilter(preset, applyToAll = applyToAll)
+                    },
+                    onUpdateFilterIntensity = { intensity, applyToAll ->
+                        viewModel.updateSelectedClipFilterIntensity(intensity, applyToAll = applyToAll)
+                    },
+                    onUpdateColorAdjustments = { b, c, s, v ->
+                        viewModel.updateSelectedClipColorAdjustments(
+                            brightness = b,
+                            contrast = c,
+                            saturation = s,
+                            vignette = v
+                        )
+                    },
+                    onResetFilterAndColor = { applyToAll ->
+                        viewModel.resetSelectedClipFilterAndColor(applyToAll = applyToAll)
+                    },
+                    onDismiss = { viewModel.closeFiltersBottomSheet() }
+                )
             }
         }
     }
@@ -470,7 +502,6 @@ private fun EditorBottomNavigationBar(
                     EditorBottomTab.STICKERS -> Icons.Default.EmojiEmotions
                     EditorBottomTab.SPEED -> Icons.Default.Speed
                     EditorBottomTab.COLOR -> Icons.Default.Tune
-                    EditorBottomTab.AI_TOOLS -> Icons.Default.AutoAwesome
                     EditorBottomTab.SFX_STUDIO -> Icons.Default.GraphicEq
                     EditorBottomTab.FX_STORE -> Icons.Default.Storefront
                     EditorBottomTab.EXPORT -> Icons.Default.FileUpload
@@ -480,7 +511,6 @@ private fun EditorBottomNavigationBar(
                     EditorBottomTab.TIMELINE,
                     EditorBottomTab.FILTERS,
                     EditorBottomTab.EXPORT -> NovaGold
-                    EditorBottomTab.AI_TOOLS,
                     EditorBottomTab.TRANSITIONS,
                     EditorBottomTab.COLOR,
                     EditorBottomTab.FX_STORE -> NovaPurpleLight

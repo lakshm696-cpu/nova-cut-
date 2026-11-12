@@ -369,48 +369,6 @@ object ProceduralMediaGenerator {
         writeWavContainer(file, sampleRate, pcmData)
     }
 
-    /**
-     * Extracts representative Bitmap frames from a video URI for AI Multimodal Scene Detection
-     * and AI Video Enhancement, with a clean procedural fallback if the URI is synthetic.
-     */
-    suspend fun extractFramesForAi(
-        context: Context,
-        uriString: String,
-        count: Int = 3
-    ): List<Bitmap> = withContext(Dispatchers.IO) {
-        val frames = mutableListOf<Bitmap>()
-        val retriever = MediaMetadataRetriever()
-        try {
-            val uri = Uri.parse(uriString)
-            if (uri.scheme == "file") {
-                retriever.setDataSource(uri.path)
-            } else {
-                retriever.setDataSource(context, uri)
-            }
-            val durationMs = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
-                ?.toLongOrNull() ?: 4000L
-            for (i in 0 until count) {
-                val timeUs = ((durationMs * (i + 1)) / (count + 1)) * 1000L
-                val bmp = retriever.getFrameAtTime(timeUs, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
-                if (bmp != null) {
-                    val scaled = Bitmap.createScaledBitmap(bmp, 320, 180, true)
-                    frames.add(scaled)
-                }
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "Frame extraction fallback triggered: ${e.message}")
-        } finally {
-            runCatching { retriever.release() }
-        }
-
-        if (frames.isEmpty()) {
-            for (i in 0 until count) {
-                frames.add(renderProceduralPreviewBitmap(themeIndex = i % 3, progress = (i + 1) / 4f))
-            }
-        }
-        frames
-    }
-
     fun renderProceduralPreviewBitmap(themeIndex: Int, progress: Float, width: Int = 320, height: Int = 180): Bitmap {
         val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)

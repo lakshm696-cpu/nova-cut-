@@ -142,6 +142,13 @@ fun ClipEditToolbar(
                 onClick = { viewModel.splitSelectedClipAtPlayhead() }
             )
             EditorActionPill(
+                label = "Filter Grid",
+                icon = Icons.Default.ColorLens,
+                accent = NovaAmber,
+                testTag = "action_open_filter_grid",
+                onClick = { viewModel.openFiltersBottomSheet() }
+            )
+            EditorActionPill(
                 label = "Merge Next",
                 icon = Icons.Default.CallMerge,
                 accent = NovaViolet,
@@ -658,7 +665,7 @@ fun TextAndStickerPanel(
                 }
             }
 
-            // Custom Fonts & AI Auto-Subtitles Row
+            // Custom Fonts & CC Track Row
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -666,22 +673,6 @@ fun TextAndStickerPanel(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Surface(
-                    color = NovaViolet.copy(alpha = 0.22f),
-                    shape = RoundedCornerShape(8.dp),
-                    modifier = Modifier
-                        .clickable { viewModel.runAiAutoSubtitles() }
-                        .border(1.dp, NovaViolet, RoundedCornerShape(8.dp))
-                        .padding(horizontal = 10.dp, vertical = 6.dp)
-                        .testTag("text_panel_ai_subtitles_button")
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = NovaViolet, modifier = Modifier.size(14.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("AI Auto Subtitles", style = MaterialTheme.typography.labelSmall, color = Color.White)
-                    }
-                }
-
                 FilterChip(
                     selected = isSubtitleMode,
                     onClick = { isSubtitleMode = !isSubtitleMode },
@@ -862,17 +853,46 @@ fun FiltersAndChromaPanel(
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        // Color LUT Filter Presets Row
+        // Color LUT Filter Presets Row + Open Media3 Filter Grid Bottom Sheet Button
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = "CINEMA COLOR LUT FILTERS",
-                style = MaterialTheme.typography.labelSmall,
-                color = NovaCyan
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = "CINEMA COLOR LUT FILTERS",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = NovaCyan
+                )
+                Surface(
+                    color = NovaAmber.copy(alpha = 0.20f),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier
+                        .border(1.dp, NovaAmber, RoundedCornerShape(8.dp))
+                        .clickable { viewModel.openFiltersBottomSheet() }
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                        .testTag("open_filters_bottom_sheet_button")
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.ColorLens,
+                            contentDescription = "Open Filter Grid Sheet",
+                            tint = NovaAmber,
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Filter Grid (${FilterPreset.entries.size})",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = NovaAmber
+                        )
+                    }
+                }
+            }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Apply to All", style = MaterialTheme.typography.labelSmall, color = NovaTextSecondary)
                 Spacer(modifier = Modifier.width(6.dp))
@@ -1004,7 +1024,7 @@ fun FiltersAndChromaPanel(
                     ) {
                         Column {
                             Text(
-                                text = "GREEN-SCREEN CHROMA KEY & AI BG REMOVAL",
+                                text = "GREEN-SCREEN CHROMA KEY & BG MATTE",
                                 style = MaterialTheme.typography.labelLarge,
                                 color = NovaEmerald
                             )

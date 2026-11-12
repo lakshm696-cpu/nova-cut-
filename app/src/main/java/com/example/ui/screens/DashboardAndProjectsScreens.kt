@@ -178,7 +178,7 @@ fun SplashScreen(onSkipToHome: () -> Unit) {
             ) {
                 Image(
                     painter = painterResource(id = R.drawable.img_novacut_pro_icon_fg_1794494239729),
-                    contentDescription = "NOVACUT PRO Emblem",
+                    contentDescription = "NOVACUT Emblem",
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
                 )
@@ -198,7 +198,7 @@ fun SplashScreen(onSkipToHome: () -> Unit) {
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = "LUXURY CINEMA & AI VIDEO STUDIO",
+                text = "CINEMA MULTI-TRACK VIDEO STUDIO",
                 style = MaterialTheme.typography.labelMedium,
                 color = NovaGold,
                 letterSpacing = 2.sp
@@ -226,7 +226,7 @@ fun SplashScreen(onSkipToHome: () -> Unit) {
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "INITIALIZING MEDIA3 & GEMINI 3.8 STUDIO...",
+                        text = "INITIALIZING MEDIA3 STUDIO...",
                         style = MaterialTheme.typography.labelSmall,
                         color = NovaTextSecondary
                     )
@@ -240,9 +240,7 @@ fun SplashScreen(onSkipToHome: () -> Unit) {
 fun HomeDashboardScreen(viewModel: NovaCutViewModel) {
     val savedProjects by viewModel.savedProjects.collectAsStateWithLifecycle()
     val exportHistory by viewModel.exportHistory.collectAsStateWithLifecycle()
-    val customAiEffects by viewModel.customAiEffects.collectAsStateWithLifecycle()
     var bottomNavIndex by remember { mutableStateOf(0) }
-    var aiQuickPrompt by remember { mutableStateOf("24K gold cinema lens flare with neon purple halation") }
 
     val galleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickMultipleVisualMedia(maxItems = 10)
@@ -313,17 +311,17 @@ fun HomeDashboardScreen(viewModel: NovaCutViewModel) {
                 NavigationBarItem(
                     selected = bottomNavIndex == 3,
                     onClick = {
-                        viewModel.selectBottomTab(EditorBottomTab.AI_TOOLS)
+                        viewModel.selectBottomTab(EditorBottomTab.TIMELINE)
                         viewModel.navigateTo(AppScreen.VIDEO_EDITOR)
                     },
-                    icon = { Icon(Icons.Default.AutoAwesome, contentDescription = "AI Studio") },
-                    label = { Text("AI Studio") },
+                    icon = { Icon(Icons.Default.ContentCut, contentDescription = "Editor") },
+                    label = { Text("Editor") },
                     colors = NavigationBarItemDefaults.colors(
                         selectedIconColor = NovaGold,
                         selectedTextColor = NovaGold,
                         indicatorColor = NovaSurface
                     ),
-                    modifier = Modifier.testTag("nav_ai_studio_tab")
+                    modifier = Modifier.testTag("nav_editor_tab")
                 )
             }
         }
@@ -377,7 +375,7 @@ fun HomeDashboardScreen(viewModel: NovaCutViewModel) {
                                 }
                             }
                             Text(
-                                text = "Creative Video Studio • Media3 & Gemini AI",
+                                text = "Creative Video Studio • Media3 Engine",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = NovaTextSecondary
                             )
@@ -461,7 +459,7 @@ fun HomeDashboardScreen(viewModel: NovaCutViewModel) {
                     Box(modifier = Modifier.fillMaxWidth()) {
                         Image(
                             painter = painterResource(id = R.drawable.img_novacut_pro_hero_1794494239931),
-                            contentDescription = "NOVACUT PRO Studio Banner",
+                            contentDescription = "NOVACUT Studio Banner",
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(205.dp),
@@ -495,7 +493,7 @@ fun HomeDashboardScreen(viewModel: NovaCutViewModel) {
                                     shape = RoundedCornerShape(6.dp)
                                 ) {
                                     Text(
-                                        text = "CINEMA 4K • 60 FPS • AI SHADERS",
+                                        text = "CINEMA 4K • 60 FPS • MEDIA3 FX",
                                         style = MaterialTheme.typography.labelSmall,
                                         color = NovaGold,
                                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
@@ -552,7 +550,7 @@ fun HomeDashboardScreen(viewModel: NovaCutViewModel) {
                 }
             }
 
-            // 3. AI Video Studio & Custom AI Effect Generator Card
+            // 3. Studio Quick Tools Card
             item {
                 Card(
                     colors = CardDefaults.cardColors(containerColor = NovaSurface),
@@ -581,12 +579,12 @@ fun HomeDashboardScreen(viewModel: NovaCutViewModel) {
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Column {
                                     Text(
-                                        text = "AI VIDEO STUDIO & EFFECT GENERATOR",
+                                        text = "CREATIVE STUDIO WORKSPACE",
                                         style = MaterialTheme.typography.titleMedium,
                                         color = NovaTextPrimary
                                     )
                                     Text(
-                                        text = "Describe any visual style to synthesize a custom timeline video effect",
+                                        text = "Jump straight into Media3 filters, effects, and sound design",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = NovaTextSecondary
                                     )
@@ -597,7 +595,7 @@ fun HomeDashboardScreen(viewModel: NovaCutViewModel) {
                                 shape = RoundedCornerShape(6.dp)
                             ) {
                                 Text(
-                                    text = "FREE AI",
+                                    text = "100% FREE",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = NovaEmerald,
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
@@ -609,56 +607,11 @@ fun HomeDashboardScreen(viewModel: NovaCutViewModel) {
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            OutlinedTextField(
-                                value = aiQuickPrompt,
-                                onValueChange = { aiQuickPrompt = it },
-                                singleLine = true,
-                                placeholder = {
-                                    Text("e.g., Cyberpunk RGB split with gold film burn", color = NovaTextMuted)
-                                },
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = NovaGold,
-                                    unfocusedBorderColor = NovaBorder,
-                                    focusedTextColor = NovaTextPrimary,
-                                    unfocusedTextColor = NovaTextPrimary
-                                ),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .testTag("dashboard_ai_effect_prompt_input")
-                            )
-                            Button(
-                                onClick = {
-                                    viewModel.selectBottomTab(EditorBottomTab.VIDEO_FX)
-                                    viewModel.navigateTo(AppScreen.VIDEO_EDITOR)
-                                    viewModel.runAiCustomEffectGenerator(aiQuickPrompt)
-                                },
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = NovaPurple,
-                                    contentColor = NovaTextPrimary
-                                ),
-                                shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier
-                                    .height(54.dp)
-                                    .testTag("dashboard_generate_ai_effect_button")
-                            ) {
-                                Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Generate FX", fontWeight = FontWeight.Bold)
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             QuickStudioActionCard(
-                                title = "AI FX Studio",
-                                subtitle = "${customAiEffects.size} Custom",
+                                title = "Video FX",
+                                subtitle = "32+ Shaders",
                                 icon = Icons.Default.AutoAwesome,
                                 accent = NovaGold,
                                 modifier = Modifier
@@ -666,6 +619,19 @@ fun HomeDashboardScreen(viewModel: NovaCutViewModel) {
                                     .testTag("quick_video_fx_button"),
                                 onClick = {
                                     viewModel.selectBottomTab(EditorBottomTab.VIDEO_FX)
+                                    viewModel.navigateTo(AppScreen.VIDEO_EDITOR)
+                                }
+                            )
+                            QuickStudioActionCard(
+                                title = "Filter Grid",
+                                subtitle = "16 LUTs",
+                                icon = Icons.Default.MovieFilter,
+                                accent = NovaEmerald,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("quick_filters_grid_button"),
+                                onClick = {
+                                    viewModel.openFiltersBottomSheet()
                                     viewModel.navigateTo(AppScreen.VIDEO_EDITOR)
                                 }
                             )
@@ -684,7 +650,7 @@ fun HomeDashboardScreen(viewModel: NovaCutViewModel) {
                             )
                             QuickStudioActionCard(
                                 title = "FX Store",
-                                subtitle = "Pro Packs",
+                                subtitle = "Free Packs",
                                 icon = Icons.Default.WorkspacePremium,
                                 accent = NovaGoldLight,
                                 modifier = Modifier
@@ -692,20 +658,6 @@ fun HomeDashboardScreen(viewModel: NovaCutViewModel) {
                                     .testTag("quick_fx_store_button"),
                                 onClick = {
                                     viewModel.navigateTo(AppScreen.EFFECTS_STORE)
-                                }
-                            )
-                            QuickStudioActionCard(
-                                title = "AI Captions",
-                                subtitle = "Auto CC",
-                                icon = Icons.Default.ClosedCaption,
-                                accent = NovaEmerald,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .testTag("quick_ai_captions_button"),
-                                onClick = {
-                                    viewModel.selectBottomTab(EditorBottomTab.AI_TOOLS)
-                                    viewModel.navigateTo(AppScreen.VIDEO_EDITOR)
-                                    viewModel.runAiAutoSubtitles()
                                 }
                             )
                         }
