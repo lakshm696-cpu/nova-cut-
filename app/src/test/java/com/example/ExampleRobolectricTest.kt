@@ -3,8 +3,12 @@ package com.example
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import com.example.media.VideoExportEngine
+import com.example.model.ExportBitratePreset
+import com.example.model.ExportResolution
 import com.example.model.FilterPreset
 import com.example.ui.components.buildFilterPresetMedia3Effects
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -54,4 +58,33 @@ class ExampleRobolectricTest {
         )
         assertTrue(tealEffects.isNotEmpty())
     }
+
+    @Test
+    fun novacut_opensExportSettingsBottomSheetAndConfiguresMedia3Transformer() {
+        composeTestRule.onNodeWithTag("splash_enter_studio_button").performClick()
+        composeTestRule.waitForIdle()
+
+        composeTestRule.onNodeWithTag("open_active_editor_chip").performClick()
+        composeTestRule.waitForIdle()
+
+        // Open Export Settings Bottom Sheet from editor Export button
+        composeTestRule.onNodeWithTag("editor_export_button").performClick()
+        composeTestRule.waitForIdle()
+
+        // Verify Export Settings Bottom Sheet & controls render
+        composeTestRule.onNodeWithTag("export_settings_bottom_sheet").assertExists()
+        composeTestRule.onNodeWithTag("export_sheet_res_RES_1080P").performClick()
+        composeTestRule.onNodeWithTag("export_sheet_fps_60").performClick()
+        composeTestRule.onNodeWithTag("export_sheet_bitrate_CINEMA_MASTER").performClick()
+        composeTestRule.onNodeWithTag("export_sheet_render_button").assertExists()
+        composeTestRule.waitForIdle()
+
+        // Verify Media3 VideoEncoderSettings reflects selected resolution & bitrate
+        val encoderSettings = VideoExportEngine.buildVideoEncoderSettings(
+            resolution = ExportResolution.RES_1080P,
+            bitratePreset = ExportBitratePreset.CINEMA_MASTER
+        )
+        assertEquals(22_400_000, encoderSettings.bitrate)
+    }
 }
+

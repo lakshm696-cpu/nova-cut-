@@ -150,6 +150,10 @@ class NovaCutViewModel(application: Application) : AndroidViewModel(application)
     private val _showFiltersBottomSheet = MutableStateFlow(false)
     val showFiltersBottomSheet: StateFlow<Boolean> = _showFiltersBottomSheet.asStateFlow()
 
+    // Export Settings Bottom Sheet State (Media3 Transformer Configuration)
+    private val _showExportBottomSheet = MutableStateFlow(false)
+    val showExportBottomSheet: StateFlow<Boolean> = _showExportBottomSheet.asStateFlow()
+
     // Playback & Timeline State
     private val _isPlaying = MutableStateFlow(false)
     val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
@@ -1756,6 +1760,14 @@ class NovaCutViewModel(application: Application) : AndroidViewModel(application)
     }
 
     // Export Settings & Media3 Transformer MP4 Export (Stage 1 & Stage 5)
+    fun openExportBottomSheet() {
+        _showExportBottomSheet.value = true
+    }
+
+    fun closeExportBottomSheet() {
+        _showExportBottomSheet.value = false
+    }
+
     fun setExportResolution(res: ExportResolution) {
         _exportResolution.value = res
     }
@@ -1769,6 +1781,7 @@ class NovaCutViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun startVideoExport() {
+        _showExportBottomSheet.value = false
         pausePlayback()
         ProceduralMediaGenerator.stopAudioPreview()
         navigateTo(AppScreen.EXPORT_PROGRESS)
@@ -1791,6 +1804,7 @@ class NovaCutViewModel(application: Application) : AndroidViewModel(application)
                 aspectRatio = _aspectRatio.value,
                 resolution = res,
                 fps = fps,
+                bitratePreset = bitrate,
                 onProgress = { pct, status ->
                     _exportState.value = ExportState.Exporting(
                         progressPercent = pct,

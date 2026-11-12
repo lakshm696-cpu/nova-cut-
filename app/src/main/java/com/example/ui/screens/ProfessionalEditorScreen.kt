@@ -71,6 +71,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.model.AppScreen
 import com.example.model.EditorBottomTab
+import com.example.ui.components.ExportSettingsBottomSheet
 import com.example.ui.components.VideoFiltersBottomSheet
 import com.example.ui.theme.NovaBorder
 import com.example.ui.theme.NovaCharcoal
@@ -94,6 +95,8 @@ fun ProfessionalEditorScreen(viewModel: NovaCutViewModel) {
     val projectTitle by viewModel.projectTitle.collectAsStateWithLifecycle()
     val aspectRatio by viewModel.aspectRatio.collectAsStateWithLifecycle()
     val exportRes by viewModel.exportResolution.collectAsStateWithLifecycle()
+    val exportFps by viewModel.exportFps.collectAsStateWithLifecycle()
+    val exportBitratePreset by viewModel.exportBitratePreset.collectAsStateWithLifecycle()
     val videoClips by viewModel.videoClips.collectAsStateWithLifecycle()
     val videoEffects by viewModel.videoEffects.collectAsStateWithLifecycle()
     val audioTracks by viewModel.audioTracks.collectAsStateWithLifecycle()
@@ -111,6 +114,7 @@ fun ProfessionalEditorScreen(viewModel: NovaCutViewModel) {
     val activeBottomTab by viewModel.activeBottomTab.collectAsStateWithLifecycle()
     val statusBanner by viewModel.statusBanner.collectAsStateWithLifecycle()
     val showFiltersBottomSheet by viewModel.showFiltersBottomSheet.collectAsStateWithLifecycle()
+    val showExportBottomSheet by viewModel.showExportBottomSheet.collectAsStateWithLifecycle()
 
     val selectedClip = videoClips.firstOrNull { it.id == selectedClipId } ?: videoClips.firstOrNull()
     val activeClipAtPlayhead = viewModel.getActiveClipAtPlayhead()
@@ -128,7 +132,7 @@ fun ProfessionalEditorScreen(viewModel: NovaCutViewModel) {
                     when (tab) {
                         EditorBottomTab.FX_STORE -> viewModel.navigateTo(AppScreen.EFFECTS_STORE)
                         EditorBottomTab.MEDIA -> viewModel.navigateTo(AppScreen.MEDIA_GALLERY)
-                        EditorBottomTab.EXPORT -> viewModel.navigateTo(AppScreen.EXPORT_SETTINGS)
+                        EditorBottomTab.EXPORT -> viewModel.openExportBottomSheet()
                         EditorBottomTab.FILTERS -> {
                             viewModel.selectBottomTab(tab)
                             viewModel.openFiltersBottomSheet()
@@ -263,7 +267,7 @@ fun ProfessionalEditorScreen(viewModel: NovaCutViewModel) {
                             }
 
                             Button(
-                                onClick = { viewModel.navigateTo(AppScreen.EXPORT_SETTINGS) },
+                                onClick = { viewModel.openExportBottomSheet() },
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = NovaGold,
                                     contentColor = Color(0xFF1A1200)
@@ -458,6 +462,25 @@ fun ProfessionalEditorScreen(viewModel: NovaCutViewModel) {
                         viewModel.resetSelectedClipFilterAndColor(applyToAll = applyToAll)
                     },
                     onDismiss = { viewModel.closeFiltersBottomSheet() }
+                )
+            }
+
+            // Export Settings Bottom Sheet (Media3 Transformer Resolution, Bitrate, Frame Rate)
+            if (showExportBottomSheet) {
+                ExportSettingsBottomSheet(
+                    projectTitle = projectTitle,
+                    aspectRatio = aspectRatio,
+                    clipCount = videoClips.size,
+                    effectCount = videoEffects.size,
+                    totalDurationMs = totalDurationMs,
+                    selectedResolution = exportRes,
+                    selectedFps = exportFps,
+                    selectedBitratePreset = exportBitratePreset,
+                    onSelectResolution = { viewModel.setExportResolution(it) },
+                    onSelectFps = { viewModel.setExportFps(it) },
+                    onSelectBitratePreset = { viewModel.setExportBitratePreset(it) },
+                    onFinalizeExport = { viewModel.startVideoExport() },
+                    onDismiss = { viewModel.closeExportBottomSheet() }
                 )
             }
         }

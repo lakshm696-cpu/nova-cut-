@@ -16,12 +16,14 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.effect.Contrast
+import androidx.media3.effect.FrameDropEffect
 import androidx.media3.effect.HslAdjustment
 import androidx.media3.effect.Presentation
 import androidx.media3.effect.RgbAdjustment
 import androidx.media3.effect.RgbFilter
 import androidx.media3.effect.ScaleAndRotateTransformation
 import androidx.media3.transformer.Composition
+import androidx.media3.transformer.DefaultEncoderFactory
 import androidx.media3.transformer.EditedMediaItem
 import androidx.media3.transformer.EditedMediaItemSequence
 import androidx.media3.transformer.Effects
@@ -29,7 +31,9 @@ import androidx.media3.transformer.ExportException
 import androidx.media3.transformer.ExportResult
 import androidx.media3.transformer.ProgressHolder
 import androidx.media3.transformer.Transformer
+import androidx.media3.transformer.VideoEncoderSettings
 import com.example.model.AspectRatioPreset
+import com.example.model.ExportBitratePreset
 import com.example.model.ExportFps
 import com.example.model.ExportResolution
 import com.example.model.TransitionType
@@ -122,9 +126,24 @@ object VideoExportEngine {
     }
 
     /**
+     * Builds Media3 [VideoEncoderSettings] configured for the selected [resolution] and [bitratePreset].
+     */
+    fun buildVideoEncoderSettings(
+        resolution: ExportResolution,
+        bitratePreset: ExportBitratePreset
+    ): VideoEncoderSettings {
+        val targetBitrateBps = (resolution.bitrateMbps * bitratePreset.multiplier * 1_000_000f)
+            .toInt()
+            .coerceAtLeast(1_500_000)
+        return VideoEncoderSettings.Builder()
+            .setBitrate(targetBitrateBps)
+            .build()
+    }
+
+    /**
      * Executes a real AndroidX Media3 Transformer export pipeline combining the main video track
      * clips with their clipping configurations, rotation, crop scale, LUT color filters,
-     * stacked VideoEffectItem timeline effects (including AI-generated custom effects), transitions,
+     * stacked VideoEffectItem timeline effects, transitions, target frame rate, target bitrate,
      * and target resolution (720p, 1080p, 2K, or 4K), then saves the resulting MP4 into the device Gallery.
      */
     suspend fun exportTimelineToMp4(
@@ -135,6 +154,7 @@ object VideoExportEngine {
         aspectRatio: AspectRatioPreset,
         resolution: ExportResolution,
         fps: ExportFps,
+        bitratePreset: ExportBitratePreset = ExportBitratePreset.HIGH,
         onProgress: (Int, String) -> Unit
     ): ExportState = withContext(Dispatchers.Main) {
         val mainClips = clips.filter { it.trackIndex == 0 }.ifEmpty { clips }
@@ -143,13 +163,14 @@ object VideoExportEngine {
         }
 
         val exportDir = File(context.filesDir, "exports").apply { mkdirs() }
-        val sanitizedTitle = projectTitle.replace(Regex("[^a-zA-Z0-9_-]"), "_").ifBlank { "NovaCutPro" }
+        val sanitizedTitle = projectTitle.replace(Regex("[^a-zA-Z0-9_-]"), "_").ifBlank { "NovaCut" }
         val outputFile = File(exportDir, "${sanitizedTitle}_${resolution.heightPx}p_${System.currentTimeMillis()}.mp4")
         if (outputFile.exists()) outputFile.delete()
 
+        val effectiveMbps = resolution.bitrateMbps * bitratePreset.multiplier
         onProgress(
             4,
-            "Compiling ${mainClips.size} clip(s) & ${videoEffects.size} FX layer(s) into Media3 Transformer (${resolution.label})..."
+            "Compiling ${mainClips.size} clip(s) & ${videoEffects.size} FX into Media3 Transformer (${resolution.label}, ${fps.fps} FPS, ${String.format("%.1f", effectiveMbps)} Mbps)..."
         )
 
         val editedItems = mainClips.map { clip ->
@@ -332,8 +353,9 @@ object VideoExportEngine {
                 media3Effects.add(hslBuilder.build())
             }
 
-            // 5. Target Resolution Presentation (720p / 1080p / 2K / 4K)
+            // 5. Target Resolution Presentation (720p / 1080p / 2K / 4K) & Target Frame Rate
             media3Effects.add(Presentation.createForHeight(resolution.heightPx))
+            media3Effects.add(FrameDropEffect.createDefaultFrameDropEffect(fps.fps.toFloat()))
 
             // On Android Emulator (EGL_emulation), DefaultVideoFrameProcessor queries EGL attribute 0x32c0
             // (EGL_CONTEXT_PRIORITY_LEVEL_IMG) which logs EGL_BAD_ATTRIBUTE. Bypass GL effects on emulator.
@@ -355,8 +377,14 @@ object VideoExportEngine {
         var transformerFinished = false
         var exportError: String? = null
 
+        val encoderFactory = DefaultEncoderFactory.Builder(context)
+            .setRequestedVideoEncoderSettings(buildVideoEncoderSettings(resolution, bitratePreset))
+            .setEnableFallback(true)
+            .build()
+
         val transformer = Transformer.Builder(context)
             .setVideoMimeType(MimeTypes.VIDEO_H264)
+            .setEncoderFactory(encoderFactory)
             .setLooper(Looper.getMainLooper())
             .addListener(object : Transformer.Listener {
                 override fun onCompleted(composition: Composition, exportResult: ExportResult) {
@@ -419,7 +447,7 @@ object VideoExportEngine {
             )
         }
 
-        onProgress(97, "Saving MP4 to Device Gallery (Movies/NovaCutPro)...")
+        onProgress(97, "Saving MP4 to Device Gallery (Movies/NovaCut)...")
         val galleryUri = withContext(Dispatchers.IO) {
             saveVideoToGallery(context, outputFile, "${sanitizedTitle}_${resolution.heightPx}p.mp4")
         }
@@ -443,7 +471,7 @@ object VideoExportEngine {
                 put(MediaStore.Video.Media.MIME_TYPE, "video/mp4")
                 put(MediaStore.Video.Media.DATE_ADDED, System.currentTimeMillis() / 1000L)
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    put(MediaStore.Video.Media.RELATIVE_PATH, Environment.DIRECTORY_MOVIES + "/NovaCutPro")
+                    put(MediaStore.Video.Media.RELATIVE_PATH, Environment.DIRECTORY_MOVIES + "/NovaCut")
                     put(MediaStore.Video.Media.IS_PENDING, 1)
                 }
             }
