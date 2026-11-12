@@ -86,5 +86,26 @@ class ExampleRobolectricTest {
         )
         assertEquals(22_400_000, encoderSettings.bitrate)
     }
+
+    @Test
+    fun voiceRecorderAndExportEngine_handleEdgeStatesSafelyWithoutMpeg4WriterError() = kotlinx.coroutines.runBlocking {
+        val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.app.Application>()
+        val recorderManager = com.example.media.VoiceRecorderManager(context)
+        assertEquals(false, recorderManager.isRecording)
+        assertEquals(null, recorderManager.stopRecording())
+
+        val emptyResult = VideoExportEngine.exportTimelineToMp4(
+            context = context,
+            projectTitle = "EmptyCheck",
+            clips = emptyList(),
+            videoEffects = emptyList(),
+            aspectRatio = com.example.model.AspectRatioPreset.RATIO_16_9,
+            resolution = ExportResolution.RES_1080P,
+            fps = com.example.model.ExportFps.FPS_30,
+            bitratePreset = ExportBitratePreset.HIGH,
+            onProgress = { _, _ -> }
+        )
+        assertTrue(emptyResult is com.example.media.ExportState.Error)
+    }
 }
 

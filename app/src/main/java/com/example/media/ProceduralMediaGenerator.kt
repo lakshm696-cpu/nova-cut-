@@ -75,7 +75,7 @@ object ProceduralMediaGenerator {
                 val durationMs = 4000L
                 if (!targetFile.exists() || targetFile.length() < 1024L) {
                     runCatching {
-                        generateMp4Clip(targetFile, themeIdx, width = 640, height = 360, fps = 24, durationSeconds = 4)
+                        generateMp4Clip(targetFile, themeIdx, width = 512, height = 288, fps = 24, durationSeconds = 4)
                     }.onFailure { e ->
                         Log.w(TAG, "Hardware H.264 encode fallback for $fileName", e)
                     }
@@ -425,27 +425,32 @@ object ProceduralMediaGenerator {
         val inputSurface = encoder.createInputSurface()
         encoder.start()
 
-        val muxer = MediaMuxer(outputFile.absolutePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
+        var muxer: MediaMuxer? = null
         val bufferInfo = MediaCodec.BufferInfo()
         var trackIndex = -1
         var muxerStarted = false
+        var pendingFormat: MediaFormat? = null
+        var samplesWritten = 0
+        var lastPtsUs = -1L
 
         val totalFrames = fps * durationSeconds
+        val frameDurationUs = 1_000_000L / fps.coerceAtLeast(1)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
         val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.WHITE
-            textSize = 26f
+            textSize = 22f
             isFakeBoldText = true
         }
 
         try {
+            muxer = MediaMuxer(outputFile.absolutePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
             for (frameIdx in 0 until totalFrames) {
                 val progress = frameIdx.toFloat() / totalFrames.toFloat()
                 val canvas = inputSurface.lockCanvas(null)
                 try {
                     val (bgStart, bgEnd, orbColor) = when (themeIndex % 3) {
                         0 -> Triple(Color.rgb(8, 12, 28), Color.rgb(42, 11, 64), Color.rgb(0, 240, 255))
-                    1 -> Triple(Color.rgb(20, 28, 44), Color.rgb(92, 45, 18), Color.rgb(255, 174, 0))
+                        1 -> Triple(Color.rgb(20, 28, 44), Color.rgb(92, 45, 18), Color.rgb(255, 174, 0))
                         else -> Triple(Color.rgb(0, 165, 50), Color.rgb(0, 125, 38), Color.rgb(255, 42, 133))
                     }
                     paint.shader = LinearGradient(
@@ -460,18 +465,18 @@ object ProceduralMediaGenerator {
                     val horizonY = height * 0.68f
                     canvas.drawLine(0f, horizonY, width.toFloat(), horizonY, paint)
                     for (g in -4..4) {
-                        val xTop = width * 0.5f + g * 45f
-                        val xBot = width * 0.5f + g * 140f + (progress * 80f) % 80f
+                        val xTop = width * 0.5f + g * 38f
+                        val xBot = width * 0.5f + g * 120f + (progress * 70f) % 70f
                         canvas.drawLine(xTop, horizonY, xBot, height.toFloat(), paint)
                     }
 
                     paint.color = orbColor
                     val cx = width * (0.2f + 0.6f * progress)
                     val cy = height * (0.42f + 0.12f * sin(progress * 2 * PI).toFloat())
-                    canvas.drawCircle(cx, cy, 46f, paint)
+                    canvas.drawCircle(cx, cy, 38f, paint)
 
                     paint.color = Color.argb(180, 255, 255, 255)
-                    val rect = RectF(cx - 70f, cy + 58f, cx + 70f, cy + 88f)
+                    val rect = RectF(cx - 58f, cy + 46f, cx + 58f, cy + 72f)
                     canvas.drawRoundRect(rect, 8f, 8f, paint)
 
                     val sceneLabel = when (themeIndex % 3) {
@@ -479,61 +484,119 @@ object ProceduralMediaGenerator {
                         1 -> "NOVACUT SCENE 02 • GOLDEN ANAMORPHIC"
                         else -> "NOVACUT SCENE 03 • CHROMA COMPOSITE"
                     }
-                    canvas.drawText(sceneLabel, 28f, 44f, textPaint)
+                    canvas.drawText(sceneLabel, 22f, 36f, textPaint)
                 } finally {
                     inputSurface.unlockCanvasAndPost(canvas)
                 }
 
-                drainEncoder(encoder, muxer, bufferInfo, endOfStream = false, trackIndexHolder = { trackIndex }) { newIdx, started ->
-                    trackIndex = newIdx
-                    muxerStarted = started
-                }
+                val drainResult = drainEncoder(
+                    encoder = encoder,
+                    muxer = muxer,
+                    bufferInfo = bufferInfo,
+                    endOfStream = false,
+                    currentTrackIndex = trackIndex,
+                    isMuxerStarted = muxerStarted,
+                    initialPendingFormat = pendingFormat,
+                    samplesWrittenInitial = samplesWritten,
+                    lastPtsUsInitial = lastPtsUs,
+                    frameDurationUs = frameDurationUs
+                )
+                trackIndex = drainResult.trackIndex
+                muxerStarted = drainResult.muxerStarted
+                pendingFormat = drainResult.pendingFormat
+                samplesWritten = drainResult.samplesWritten
+                lastPtsUs = drainResult.lastPtsUs
             }
 
             encoder.signalEndOfInputStream()
-            drainEncoder(encoder, muxer, bufferInfo, endOfStream = true, trackIndexHolder = { trackIndex }) { newIdx, started ->
-                trackIndex = newIdx
-                muxerStarted = started
-            }
+            val finalDrain = drainEncoder(
+                encoder = encoder,
+                muxer = muxer,
+                bufferInfo = bufferInfo,
+                endOfStream = true,
+                currentTrackIndex = trackIndex,
+                isMuxerStarted = muxerStarted,
+                initialPendingFormat = pendingFormat,
+                samplesWrittenInitial = samplesWritten,
+                lastPtsUsInitial = lastPtsUs,
+                frameDurationUs = frameDurationUs
+            )
+            trackIndex = finalDrain.trackIndex
+            muxerStarted = finalDrain.muxerStarted
+            samplesWritten = finalDrain.samplesWritten
         } finally {
             runCatching { encoder.stop() }
             runCatching { encoder.release() }
             runCatching { inputSurface.release() }
-            if (muxerStarted) {
-                runCatching { muxer.stop() }
+            if (muxerStarted && samplesWritten > 0) {
+                runCatching { muxer?.stop() }
             }
-            runCatching { muxer.release() }
+            runCatching { muxer?.release() }
+            if (samplesWritten == 0 && outputFile.exists()) {
+                runCatching { outputFile.delete() }
+            }
         }
     }
+
+    private data class DrainResult(
+        val trackIndex: Int,
+        val muxerStarted: Boolean,
+        val pendingFormat: MediaFormat?,
+        val samplesWritten: Int,
+        val lastPtsUs: Long
+    )
 
     private fun drainEncoder(
         encoder: MediaCodec,
         muxer: MediaMuxer,
         bufferInfo: MediaCodec.BufferInfo,
         endOfStream: Boolean,
-        trackIndexHolder: () -> Int,
-        onStateUpdate: (Int, Boolean) -> Unit
-    ) {
-        var trackIdx = trackIndexHolder()
-        var started = trackIdx >= 0
+        currentTrackIndex: Int,
+        isMuxerStarted: Boolean,
+        initialPendingFormat: MediaFormat?,
+        samplesWrittenInitial: Int,
+        lastPtsUsInitial: Long,
+        frameDurationUs: Long
+    ): DrainResult {
+        var trackIdx = currentTrackIndex
+        var started = isMuxerStarted
+        var pendingFormat = initialPendingFormat
+        var samplesWritten = samplesWrittenInitial
+        var lastPtsUs = lastPtsUsInitial
+        var emptyTryAgainCount = 0
+
         while (true) {
             val status = encoder.dequeueOutputBuffer(bufferInfo, 10_000L)
             if (status == MediaCodec.INFO_TRY_AGAIN_LATER) {
-                if (!endOfStream) break
+                if (!endOfStream || ++emptyTryAgainCount >= 80) break
             } else if (status == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
-                val newFormat = encoder.outputFormat
-                trackIdx = muxer.addTrack(newFormat)
-                muxer.start()
-                started = true
-                onStateUpdate(trackIdx, true)
+                if (!started) {
+                    pendingFormat = encoder.outputFormat
+                }
             } else if (status >= 0) {
+                emptyTryAgainCount = 0
                 val encodedData = encoder.getOutputBuffer(status)
-                if (encodedData != null && bufferInfo.size > 0 && started) {
+                if (encodedData != null && bufferInfo.size > 0) {
                     if ((bufferInfo.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG) == 0) {
-                        encodedData.position(bufferInfo.offset)
-                        encodedData.limit(bufferInfo.offset + bufferInfo.size)
-                        bufferInfo.presentationTimeUs = System.nanoTime() / 1000L
-                        muxer.writeSampleData(trackIdx, encodedData, bufferInfo)
+                        if (!started) {
+                            val fmt = pendingFormat ?: encoder.outputFormat
+                            trackIdx = muxer.addTrack(fmt)
+                            muxer.start()
+                            started = true
+                        }
+                        if (started && trackIdx >= 0) {
+                            encodedData.position(bufferInfo.offset)
+                            encodedData.limit(bufferInfo.offset + bufferInfo.size)
+                            val monotonicPts = if (lastPtsUs < 0L) {
+                                0L
+                            } else {
+                                lastPtsUs + frameDurationUs
+                            }
+                            bufferInfo.presentationTimeUs = monotonicPts
+                            lastPtsUs = monotonicPts
+                            muxer.writeSampleData(trackIdx, encodedData, bufferInfo)
+                            samplesWritten++
+                        }
                     }
                 }
                 encoder.releaseOutputBuffer(status, false)
@@ -542,6 +605,13 @@ object ProceduralMediaGenerator {
                 }
             }
         }
+        return DrainResult(
+            trackIndex = trackIdx,
+            muxerStarted = started,
+            pendingFormat = pendingFormat,
+            samplesWritten = samplesWritten,
+            lastPtsUs = lastPtsUs
+        )
     }
 
     private fun writeSynthesizedWav(file: File, durationSec: Int, presetIndex: Int) {
@@ -613,8 +683,9 @@ class VoiceRecorderManager(private val context: Context) {
         stopRecording()
         val dir = File(context.filesDir, "voiceovers").apply { mkdirs() }
         val outFile = File(dir, "voiceover_${System.currentTimeMillis()}.m4a")
+        var mediaRecorder: MediaRecorder? = null
         return try {
-            val mediaRecorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            mediaRecorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 MediaRecorder(context)
             } else {
                 @Suppress("DEPRECATION")
@@ -636,6 +707,9 @@ class VoiceRecorderManager(private val context: Context) {
             outFile
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start MediaRecorder for voiceover", e)
+            runCatching { mediaRecorder?.reset() }
+            runCatching { mediaRecorder?.release() }
+            runCatching { if (outFile.exists()) outFile.delete() }
             null
         }
     }
@@ -648,17 +722,36 @@ class VoiceRecorderManager(private val context: Context) {
     fun stopRecording(): Pair<File, Long>? {
         val activeRecorder = recorder ?: return null
         val file = currentOutputFile
-        val elapsed = (System.currentTimeMillis() - startTimeMs).coerceAtLeast(1000L)
+        val rawElapsed = System.currentTimeMillis() - startTimeMs
+        val elapsed = rawElapsed.coerceAtLeast(1000L)
         recorder = null
         currentOutputFile = null
+        if (rawElapsed < 450L) {
+            // Reset instead of stop() to prevent MPEG4Writer::stop() when no AAC samples have been written yet.
+            runCatching { activeRecorder.reset() }
+            runCatching { activeRecorder.release() }
+            runCatching { if (file != null && file.exists()) file.delete() }
+            return null
+        }
         return try {
             activeRecorder.stop()
             activeRecorder.release()
-            if (file != null && file.exists()) Pair(file, elapsed) else null
+            if (file != null && file.exists() && file.length() > 128L) {
+                Pair(file, elapsed)
+            } else {
+                runCatching { file?.delete() }
+                null
+            }
         } catch (e: Exception) {
             Log.w(TAG, "Voiceover stop warning: ${e.message}")
+            runCatching { activeRecorder.reset() }
             runCatching { activeRecorder.release() }
-            if (file != null && file.exists()) Pair(file, elapsed) else null
+            if (file != null && file.exists() && file.length() > 128L) {
+                Pair(file, elapsed)
+            } else {
+                runCatching { file?.delete() }
+                null
+            }
         }
     }
 }
