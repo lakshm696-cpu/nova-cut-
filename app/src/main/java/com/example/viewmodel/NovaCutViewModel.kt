@@ -6,6 +6,9 @@ import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import android.content.Context
+import com.example.data.cloud.CloudProject
+import com.example.data.cloud.CloudProjectRepository
 import com.example.data.local.NovaCutDatabase
 import com.example.data.local.ProjectEntity
 import com.example.data.local.ProjectRepository
@@ -15,7 +18,10 @@ import com.example.media.StudioSampleAudio
 import com.example.media.StudioSampleVideo
 import com.example.media.VideoExportEngine
 import com.example.media.VoiceRecorderManager
-import android.content.Context
+import com.google.firebase.Firebase
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.auth
+import kotlinx.coroutines.flow.catch
 import com.example.model.AppScreen
 import com.example.model.AspectRatioPreset
 import com.example.model.AudioTrackItem
@@ -59,7 +65,27 @@ class NovaCutViewModel(application: Application) : AndroidViewModel(application)
 
     private val database = NovaCutDatabase.getInstance(application)
     private val repository = ProjectRepository(database.projectDao())
+    private val cloudRepository: CloudProjectRepository? = runCatching {
+        CloudProjectRepository(application)
+    }.getOrNull()
     private val voiceRecorder = VoiceRecorderManager(application)
+
+    private val _cloudProjects = MutableStateFlow<List<CloudProject>>(emptyList())
+    val cloudProjects: StateFlow<List<CloudProject>> = _cloudProjects.asStateFlow()
+
+    private val _activeAppLinkUri = MutableStateFlow<String?>(null)
+    val activeAppLinkUri: StateFlow<String?> = _activeAppLinkUri.asStateFlow()
+
+    private var cloudSyncJob: Job? = null
+    private val authStateListener = FirebaseAuth.AuthStateListener { firebaseAuth ->
+        val user = firebaseAuth.currentUser
+        if (user != null) {
+            startCloudProjectObserver(user.uid)
+        } else {
+            cloudSyncJob?.cancel()
+            _cloudProjects.value = emptyList()
+        }
+    }
 
     val savedProjects: StateFlow<List<ProjectEntity>> = repository.allProjects.stateIn(
         scope = viewModelScope,
@@ -200,6 +226,9 @@ class NovaCutViewModel(application: Application) : AndroidViewModel(application)
 
     init {
         initializeStudioEnvironment()
+        runCatching {
+            Firebase.auth.addAuthStateListener(authStateListener)
+        }
     }
 
     private fun initializeStudioEnvironment() {
@@ -576,7 +605,10 @@ class NovaCutViewModel(application: Application) : AndroidViewModel(application)
     fun deleteSavedProject(projectId: String) {
         viewModelScope.launch {
             repository.deleteProject(projectId)
-            showStatus("Project removed from local storage")
+            if (runCatching { Firebase.auth.currentUser }.getOrNull() != null) {
+                cloudRepository?.deleteCloudProject(projectId)
+            }
+            showStatus("Project removed from storage")
         }
     }
 
@@ -600,6 +632,111 @@ class NovaCutViewModel(application: Application) : AndroidViewModel(application)
                 stickerOverlays = _stickerOverlays.value,
                 lastExportedUri = lastExportedUri
             )
+            if (runCatching { Firebase.auth.currentUser }.getOrNull() != null) {
+                val localEntity = repository.getProjectById(_currentProjectId.value)
+                if (localEntity != null) {
+                    cloudRepository?.upsertCloudProject(localEntity)
+                }
+            }
+        }
+    }
+
+    private fun startCloudProjectObserver(uid: String) {
+        val cloudRepo = cloudRepository ?: return
+        cloudSyncJob?.cancel()
+        cloudSyncJob = viewModelScope.launch {
+            cloudRepo.observeCloudProjects()
+                .catch { e ->
+                    Log.w(TAG, "Cloud project stream notice for $uid: ${e.message}")
+                }
+                .collect { remoteList ->
+                    _cloudProjects.value = remoteList
+                }
+        }
+    }
+
+    fun syncProjectsWithFirebaseCloud() {
+        val cloudRepo = cloudRepository
+        val user = runCatching { Firebase.auth.currentUser }.getOrNull()
+        if (cloudRepo == null || user == null) {
+            showStatus("Sign in with Google first to sync projects with Firebase Cloud")
+            return
+        }
+        viewModelScope.launch {
+            val localList = savedProjects.value
+            var pushed = 0
+            for (entity in localList) {
+                if (cloudRepo.upsertCloudProject(entity).isSuccess) {
+                    pushed++
+                }
+            }
+            val remoteResult = cloudRepo.getCloudProjects()
+            remoteResult.getOrNull()?.let { remoteProjects ->
+                _cloudProjects.value = remoteProjects
+            }
+            showStatus("Synced $pushed project(s) with Firebase Cloud Firestore")
+        }
+    }
+
+    fun getShareableProjectHttpsAppLink(projectId: String = _currentProjectId.value): String {
+        val encodedTitle = Uri.encode(_projectTitle.value)
+        return "https://novacut.studio/project/$projectId?title=$encodedTitle&ratio=${_aspectRatio.value.name}"
+    }
+
+    fun getCustomSchemeAppLink(projectId: String = _currentProjectId.value): String {
+        val encodedTitle = Uri.encode(_projectTitle.value)
+        return "novacut://project/$projectId?title=$encodedTitle&ratio=${_aspectRatio.value.name}"
+    }
+
+    fun handleIncomingAppLink(uri: Uri?) {
+        if (uri == null) return
+        _activeAppLinkUri.value = uri.toString()
+        val host = uri.host?.lowercase().orEmpty()
+        val pathSegments = uri.pathSegments.map { it.lowercase() }
+        val firstSegment = pathSegments.firstOrNull().orEmpty()
+
+        when {
+            host == "store" || firstSegment == "store" -> {
+                _currentScreen.value = AppScreen.EFFECTS_STORE
+                showStatus("Opened Effects Marketplace via App Link")
+            }
+            host == "export" || firstSegment == "export" -> {
+                _currentScreen.value = AppScreen.VIDEO_EDITOR
+                _showExportBottomSheet.value = true
+                showStatus("Opened Media3 Export Config via App Link")
+            }
+            host == "project" || firstSegment == "project" || firstSegment == "share" -> {
+                val targetId = uri.lastPathSegment
+                val linkTitle = uri.getQueryParameter("title")
+                val linkRatio = uri.getQueryParameter("ratio")
+                viewModelScope.launch {
+                    val existing = if (!targetId.isNullOrBlank()) {
+                        repository.getProjectById(targetId)
+                    } else null
+                    if (existing != null) {
+                        openSavedProject(existing)
+                    } else {
+                        if (!linkTitle.isNullOrBlank()) {
+                            _projectTitle.value = linkTitle
+                        }
+                        if (!linkRatio.isNullOrBlank()) {
+                            runCatching { AspectRatioPreset.valueOf(linkRatio) }.getOrNull()?.let {
+                                _aspectRatio.value = it
+                            }
+                        }
+                        _currentScreen.value = AppScreen.VIDEO_EDITOR
+                        showStatus("Opened '${_projectTitle.value}' via Android App Link")
+                    }
+                }
+            }
+            host == "editor" || firstSegment == "editor" -> {
+                _currentScreen.value = AppScreen.VIDEO_EDITOR
+                showStatus("Opened Studio Editor via App Link")
+            }
+            else -> {
+                _currentScreen.value = AppScreen.HOME_DASHBOARD
+                showStatus("Opened NOVACUT via App Link (${uri.scheme}://${uri.host.orEmpty()})")
+            }
         }
     }
 
@@ -1838,6 +1975,8 @@ class NovaCutViewModel(application: Application) : AndroidViewModel(application)
 
     override fun onCleared() {
         super.onCleared()
+        runCatching { Firebase.auth.removeAuthStateListener(authStateListener) }
+        cloudSyncJob?.cancel()
         voiceRecorder.stopRecording()
         ProceduralMediaGenerator.stopAudioPreview()
         playbackTickerJob?.cancel()

@@ -1,0 +1,73 @@
+{
+  "entities": {
+    "CloudProject": {
+      "title": "CloudProject",
+      "description": "A user-owned NOVACUT video editing project synced to Firebase Cloud Firestore.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Authenticated Google user UID who owns this project."
+        },
+        "title": {
+          "type": "string",
+          "description": "Project title (1 to 120 characters)."
+        },
+        "aspectRatioName": {
+          "type": "string",
+          "description": "Selected AspectRatioPreset enum name."
+        },
+        "resolutionName": {
+          "type": "string",
+          "description": "Selected ExportResolution enum name."
+        },
+        "fpsName": {
+          "type": "string",
+          "description": "Selected ExportFps enum name."
+        },
+        "durationMs": {
+          "type": "integer",
+          "description": "Total timeline duration in milliseconds."
+        },
+        "clipCount": {
+          "type": "integer",
+          "description": "Number of video clips in the project."
+        },
+        "payloadJson": {
+          "type": "string",
+          "description": "Serialized timeline tracks payload (up to 250000 characters)."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the project was created (clients must submit FieldValue.serverTimestamp())."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the project was last updated (clients must submit FieldValue.serverTimestamp())."
+        }
+      },
+      "required": [
+        "userId",
+        "title",
+        "aspectRatioName",
+        "resolutionName",
+        "fpsName",
+        "durationMs",
+        "clipCount",
+        "payloadJson",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/projects/{projectId}": {
+      "schema": {
+        "$ref": "#/entities/CloudProject"
+      },
+      "description": "Per-user subcollection storing NOVACUT video projects owned by userId."
+    }
+  }
+}

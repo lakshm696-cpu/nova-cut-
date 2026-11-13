@@ -1,4 +1,4 @@
 <?xml version="1.0" encoding="utf-8" standalone="no"?>
 <resources>
-    <string name="recaptcha_site_key" translatable="false">6Ld2fhwuAAAAAPxwslXXgXEyvlOFEHkv0ey7vUe7</string>
+    <string name="firestore_database_id" translatable="false">ai-studio-android-novacut-b494e93f-71d8-40de-9381-8351b7b161e0</string>
 </resources>

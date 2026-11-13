@@ -1,8 +1,10 @@
 package com.example
 
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToNode
 import com.example.media.VideoExportEngine
 import com.example.model.ExportBitratePreset
 import com.example.model.ExportResolution
@@ -29,11 +31,18 @@ class ExampleRobolectricTest {
         composeTestRule.onNodeWithTag("splash_enter_studio_button").performClick()
         composeTestRule.waitForIdle()
 
+        // Verify Firebase Cloud Sync card and Android App Link banner exist on Home Dashboard
+        composeTestRule.onNodeWithTag("firebase_cloud_sync_card").assertExists()
+        composeTestRule.onNodeWithTag("app_link_share_banner").assertExists()
+        composeTestRule.onNodeWithTag("copy_app_link_button").assertExists()
+
         // Verify Home Dashboard New Project CTA exists
+        composeTestRule.onNodeWithTag("home_dashboard_lazy_column")
+            .performScrollToNode(hasTestTag("home_new_project_button"))
         composeTestRule.onNodeWithTag("home_new_project_button").assertExists()
 
-        // Navigate directly to Active Multi-Track Editor
-        composeTestRule.onNodeWithTag("open_active_editor_chip").performClick()
+        // Navigate directly to Active Multi-Track Editor via the bottom bar Editor tab
+        composeTestRule.onNodeWithTag("nav_editor_tab").performClick()
         composeTestRule.waitForIdle()
 
         // Verify Upper Video Preview Stage, Media3 VideoPlayer component & Multi-Track Timeline exist
@@ -60,7 +69,7 @@ class ExampleRobolectricTest {
     }
 
     @Test
-    fun novacut_opensExportSettingsBottomSheetAndConfiguresMedia3Transformer() {
+    fun novacut_opensExportSettingsBottomSheetAndConfiguresMedia3Transformer() = kotlinx.coroutines.runBlocking {
         composeTestRule.onNodeWithTag("splash_enter_studio_button").performClick()
         composeTestRule.waitForIdle()
 
@@ -85,10 +94,8 @@ class ExampleRobolectricTest {
             bitratePreset = ExportBitratePreset.CINEMA_MASTER
         )
         assertEquals(22_400_000, encoderSettings.bitrate)
-    }
 
-    @Test
-    fun voiceRecorderAndExportEngine_handleEdgeStatesSafelyWithoutMpeg4WriterError() = kotlinx.coroutines.runBlocking {
+        // Verify VoiceRecorderManager and VideoExportEngine edge states without MPEG4Writer errors
         val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.app.Application>()
         val recorderManager = com.example.media.VoiceRecorderManager(context)
         assertEquals(false, recorderManager.isRecording)

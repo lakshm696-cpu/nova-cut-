@@ -1,5 +1,9 @@
 package com.example.ui.screens
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.Intent
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -48,12 +52,14 @@ import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.HighQuality
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MovieCreation
 import androidx.compose.material.icons.filled.MovieFilter
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.VideoFile
@@ -92,6 +98,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -100,6 +107,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.R
+import com.example.auth.FirebaseCloudSyncCard
 import com.example.data.local.ProjectEntity
 import com.example.model.AppScreen
 import com.example.model.AspectRatioPreset
@@ -238,7 +246,9 @@ fun SplashScreen(onSkipToHome: () -> Unit) {
 
 @Composable
 fun HomeDashboardScreen(viewModel: NovaCutViewModel) {
+    val context = LocalContext.current
     val savedProjects by viewModel.savedProjects.collectAsStateWithLifecycle()
+    val cloudProjects by viewModel.cloudProjects.collectAsStateWithLifecycle()
     val exportHistory by viewModel.exportHistory.collectAsStateWithLifecycle()
     var bottomNavIndex by remember { mutableStateOf(0) }
 
@@ -329,7 +339,8 @@ fun HomeDashboardScreen(viewModel: NovaCutViewModel) {
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding),
+                .padding(innerPadding)
+                .testTag("home_dashboard_lazy_column"),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
@@ -437,6 +448,101 @@ fun HomeDashboardScreen(viewModel: NovaCutViewModel) {
                                     style = MaterialTheme.typography.labelMedium,
                                     color = NovaTextPrimary
                                 )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 1B. Firebase Cloud Studio Sync & Google Sign-In + Android App Link Card
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    FirebaseCloudSyncCard(
+                        cloudProjectCount = cloudProjects.size,
+                        onSyncNowClicked = { viewModel.syncProjectsWithFirebaseCloud() },
+                        onStatusMessage = { msg -> viewModel.showStatus(msg) }
+                    )
+
+                    Surface(
+                        color = NovaSurface,
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(1.dp, NovaBorder, RoundedCornerShape(16.dp))
+                            .testTag("app_link_share_banner")
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Link,
+                                    contentDescription = "Android App Link",
+                                    tint = NovaGold,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column {
+                                    Text(
+                                        text = "Android App Link Ready",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = NovaTextPrimary,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        text = viewModel.getShareableProjectHttpsAppLink(),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = NovaTextSecondary,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Surface(
+                                color = NovaGold.copy(alpha = 0.16f),
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier
+                                    .border(1.dp, NovaGoldBorder, RoundedCornerShape(10.dp))
+                                    .clickable {
+                                        val appLink = viewModel.getShareableProjectHttpsAppLink()
+                                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                                        clipboard?.setPrimaryClip(ClipData.newPlainText("NOVACUT App Link", appLink))
+                                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                            type = "text/plain"
+                                            putExtra(Intent.EXTRA_SUBJECT, "Open in NOVACUT Studio")
+                                            putExtra(Intent.EXTRA_TEXT, appLink)
+                                        }
+                                        runCatching {
+                                            context.startActivity(Intent.createChooser(shareIntent, "Share NOVACUT App Link"))
+                                        }
+                                        viewModel.showStatus("App Link copied & ready to share: $appLink")
+                                    }
+                                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                                    .testTag("copy_app_link_button")
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.Share,
+                                        contentDescription = "Share App Link",
+                                        tint = NovaGold,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "App Link",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = NovaGold,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             }
                         }
                     }

@@ -1,0 +1,104 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidCloudProject(data) {
+      return data.userId is string &&
+             data.userId == request.auth.uid &&
+             data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.title is string &&
+             data.title.size() >= 1 && data.title.size() <= 120 &&
+             data.aspectRatioName is string &&
+             data.aspectRatioName.size() >= 1 && data.aspectRatioName.size() <= 40 &&
+             data.resolutionName is string &&
+             data.resolutionName.size() >= 1 && data.resolutionName.size() <= 40 &&
+             data.fpsName is string &&
+             data.fpsName.size() >= 1 && data.fpsName.size() <= 40 &&
+             data.durationMs is int &&
+             data.durationMs >= 0 && data.durationMs <= 86400000 &&
+             data.clipCount is int &&
+             data.clipCount >= 0 && data.clipCount <= 500 &&
+             data.payloadJson is string &&
+             data.payloadJson.size() >= 2 && data.payloadJson.size() <= 250000 &&
+             data.createdAt is timestamp &&
+             data.createdAt <= request.time &&
+             data.updatedAt is timestamp &&
+             data.updatedAt <= request.time;
+    }
+
+    match /users/{userId}/projects/{projectId} {
+      allow get: if isSignedIn() && request.auth.uid == userId && isValidId(userId) && isValidId(projectId);
+      allow list: if isSignedIn() && request.auth.uid == userId;
+
+      allow create: if isSignedIn() &&
+                       request.auth.uid == userId &&
+                       isValidId(userId) &&
+                       isValidId(projectId) &&
+                       incoming().keys().hasAll([
+                         'userId',
+                         'title',
+                         'aspectRatioName',
+                         'resolutionName',
+                         'fpsName',
+                         'durationMs',
+                         'clipCount',
+                         'payloadJson',
+                         'createdAt',
+                         'updatedAt'
+                       ]) &&
+                       incoming().keys().hasOnly([
+                         'userId',
+                         'title',
+                         'aspectRatioName',
+                         'resolutionName',
+                         'fpsName',
+                         'durationMs',
+                         'clipCount',
+                         'payloadJson',
+                         'createdAt',
+                         'updatedAt'
+                       ]) &&
+                       isValidCloudProject(incoming());
+
+      allow update: if isSignedIn() &&
+                       request.auth.uid == userId &&
+                       isValidId(userId) &&
+                       isValidId(projectId) &&
+                       isValidCloudProject(incoming()) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'title',
+                         'aspectRatioName',
+                         'resolutionName',
+                         'fpsName',
+                         'durationMs',
+                         'clipCount',
+                         'payloadJson',
+                         'updatedAt'
+                       ]);
+
+      allow delete: if isSignedIn() && request.auth.uid == userId && isValidId(userId) && isValidId(projectId);
+    }
+  }
+}

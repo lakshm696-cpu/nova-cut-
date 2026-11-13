@@ -1,5 +1,7 @@
 package com.example
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -7,7 +9,10 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -26,8 +31,13 @@ import com.example.ui.theme.NovaObsidian
 import com.example.viewmodel.NovaCutViewModel
 
 class MainActivity : ComponentActivity() {
+    private var pendingAppLinkUri by mutableStateOf<Uri?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (intent?.action == Intent.ACTION_VIEW && intent?.data != null) {
+            pendingAppLinkUri = intent.data
+        }
 
         enableEdgeToEdge()
         setContent {
@@ -36,15 +46,37 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = NovaObsidian
                 ) {
-                    NovaCutAppRoot()
+                    NovaCutAppRoot(
+                        incomingAppLinkUri = pendingAppLinkUri,
+                        onAppLinkConsumed = { pendingAppLinkUri = null }
+                    )
                 }
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.action == Intent.ACTION_VIEW && intent.data != null) {
+            pendingAppLinkUri = intent.data
         }
     }
 }
 
 @Composable
-fun NovaCutAppRoot(viewModel: NovaCutViewModel = viewModel()) {
+fun NovaCutAppRoot(
+    viewModel: NovaCutViewModel = viewModel(),
+    incomingAppLinkUri: Uri? = null,
+    onAppLinkConsumed: () -> Unit = {}
+) {
+    LaunchedEffect(incomingAppLinkUri) {
+        if (incomingAppLinkUri != null) {
+            viewModel.handleIncomingAppLink(incomingAppLinkUri)
+            onAppLinkConsumed()
+        }
+    }
+
     val currentScreen by viewModel.currentScreen.collectAsStateWithLifecycle()
 
     when (currentScreen) {
